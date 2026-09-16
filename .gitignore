@@ -1,0 +1,32 @@
+# 环境变量与密钥 —— 绝对不要提交
+.env
+.env.*
+!.env.example
+
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+dist/
+build/
+.vercel/
+coverage/
+
+# 日志与临时文件
+*.log
+npm-debug.log*
+yarn-error.log*
+.scratch/
+tmp/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
