@@ -52,11 +52,16 @@ AGENTS.md              # 本文件：项目规范
 .env                   # 环境变量与密钥（不进版本库）
 docs/                  # 需求、PRD、架构、决策记录
 docs/references/       # 原始素材与外部资料存档（只读，不改写）
+output/                # 面向客户/外部的交付物（PDF、报告、导出文件）
+output/pdf/            # 文档类交付物的 PDF 版本
 data/                  # 种子数据：院校坐标表、特质词库、方向分类（CSV）
 assets/                # 品牌素材：海报、Logo、字体、院校 Logo
 scripts/               # 开发辅助脚本：抓取/整理种子数据、生成初始 CSV
 src/                   # 应用代码（Next.js，M1 启动后创建）
+tmp/                   # 临时文件（已被 .gitignore 忽略）
 ```
+
+> `docs/` 是源文档，`output/` 是从源文档生成、可直接发出去的成品。改内容改 `docs/`，然后重新生成 `output/`。
 
 ## 三、命名约定
 
