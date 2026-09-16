@@ -6,7 +6,13 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:extract": "tsx scripts/extract-colleges.ts",
+    "build:map": "tsx scripts/build-us-map.ts",
+    "build:colleges": "tsx scripts/build-colleges.ts",
+    "build:data": "pnpm build:map && pnpm build:colleges"
   },
   "dependencies": {
     "@inferencesh/sdk": "0.6.30",
@@ -22,14 +28,22 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/pg": "^8",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^5.0.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "eslint-plugin-jsx-a11y": "^6.10.2",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.13",
+    "typescript": "^5",
+    "us-atlas": "^3.0.1",
+    "vitest": "^5.0.1",
+    "zod": "^4.6.5"
   }
 }

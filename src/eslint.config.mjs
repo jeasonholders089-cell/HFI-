@@ -127,6 +127,17 @@ const eslintConfig = defineConfig([
       "import/no-unresolved": "error",
     },
   },
+  // 两个例外，理由都写了 —— 不是放宽规则，是这两处本来就该吃 devDependencies：
+  //   1) 测试文件用 vitest / @testing-library，它们不该进生产依赖；
+  //   2) lib/colleges-schema.ts 只在构建脚本里被 import，客户端只读产物
+  //      lib/colleges-data.ts，所以 zod 不会被放进客户端 bundle ——
+  //      这正是 docs/08 §2.1「运行时零依赖」的做法。
+  {
+    files: ["**/*.test.{ts,tsx}", "lib/colleges-schema.ts"],
+    rules: {
+      "import/no-extraneous-dependencies": ["error", { devDependencies: true }],
+    },
+  },
 ]);
 
 export default eslintConfig;
