@@ -22,13 +22,13 @@ export async function POST(req:Request){
  if(!saved.length)return NextResponse.json({error:'记录已删除'},{status:409});
  return NextResponse.json({ok:true});
  }
- const {englishName,age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}=child;
- const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({englishName,age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据八项问卷信息输出严格JSON，不要代码围栏：{"summary":"一句话画像","directions":[{"category":"人文科学|社会科学|自然科学|艺术中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据","nearTerm":"适龄的未来6-12个月活动","usPath":"美国体系课程、大学专业或作品集路径"}],"traits":["特质"]}。每个方向category必须从人文科学、社会科学、自然科学、艺术中选一个最适合的类别。工程、计算机归自然科学，商科归社会科学，设计归艺术。directions必须恰好3项，所有字段必须是非空字符串。traits给出3到6个特质。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。`});
+ const {age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}=child;
+ const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据问卷信息输出严格JSON，不要代码围栏，只包含三个学术方向及其依据：{"directions":[{"category":"人文科学|社会科学|自然科学|艺术中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据"}]}。每个方向category必须从人文科学、社会科学、自然科学、艺术中选一个最适合的类别。工程、计算机归自然科学，商科归社会科学，设计归艺术。directions必须恰好3项，所有字段必须是非空字符串。只输出这三个方向与依据，不要输出画像总结、特质或其他字段。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。`});
  const raw=(task.output as {response?:string}|null)?.response||'';
  let a;try{a=JSON.parse(raw.slice(raw.indexOf('{'),raw.lastIndexOf('}')+1))}catch{throw Error('模型返回格式异常，请重试')}
- const fields=['category','name','nameEn','reason','nearTerm','usPath'];
- if(typeof a.summary!=='string'||!a.summary.trim()||!Array.isArray(a.directions)||a.directions.length!==3||!a.directions.every((d:Record<string,unknown>)=>d&&CATEGORIES.includes(d.category as typeof CATEGORIES[number])&&fields.every(k=>typeof d[k]==='string'&&String(d[k]).trim()))||!Array.isArray(a.traits)||!a.traits.length||!a.traits.every((t:unknown)=>typeof t==='string'&&t.trim()))throw Error('模型画像字段不完整，请重试');
- const saved=await getDb().update(children).set({aiSummary:a.summary,aiDirections:JSON.stringify(a.directions),aiTraits:JSON.stringify(a.traits)}).where(eq(children.id,id)).returning({id:children.id});
+ const fields=['category','name','nameEn','reason'];
+ if(!Array.isArray(a.directions)||a.directions.length!==3||!a.directions.every((d:Record<string,unknown>)=>d&&CATEGORIES.includes(d.category as typeof CATEGORIES[number])&&fields.every(k=>typeof d[k]==='string'&&String(d[k]).trim())))throw Error('模型返回的方向或依据不完整，请重试');
+ const saved=await getDb().update(children).set({aiDirections:JSON.stringify(a.directions)}).where(eq(children.id,id)).returning({id:children.id});
  if(!saved.length)return NextResponse.json({error:'分析期间记录已被删除，结果未保存'},{status:409});
  return NextResponse.json({ok:true});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'分析失败，请重试'},{status:500})}
