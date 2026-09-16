@@ -98,5 +98,6 @@ tmp/                   # 临时文件（已被 .gitignore 忽略）
 - [x] 原始对话存档（`docs/references/`）
 - [x] 需求梳理（`docs/01-需求梳理.md`）
 - [x] 产品 PRD（`docs/02-产品PRD.md`）
-- [ ] 技术方案与数据库 Schema（`docs/03-技术方案.md`）
+- [x] 地图模块需求方案（`docs/03-地图模块需求方案.md`）
+- [ ] 技术方案与数据库 Schema（`docs/04-技术方案.md`）
 - [ ] M1 项目初始化
