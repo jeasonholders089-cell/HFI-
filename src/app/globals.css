@@ -1,4 +1,16 @@
 @import "tailwindcss";
 :root{--background:#f4f0e6;--foreground:#17382f}
+/* 选校地图的配色变量 —— 只在这里出现字面量色值，
+   组件里一律 var(--...)（docs/08 §5.5）。三个点色取自现有色板：
+   金棕 #8b6f45 / 墨绿 #1e4b3b / 砖红 #a26047，并配形状做二次区分。 */
+:root{
+  --dot-uni:#8b6f45;
+  --dot-pub:#1e4b3b;
+  --dot-lac:#a26047;
+  --map-ocean:#e8e6dc;
+  --map-land:#fdfcf8;
+  --map-land-line:#c9cfc6;
+  --map-glow:#7a6a52;
+}
 @theme inline{--color-background:var(--background);--color-foreground:var(--foreground);--font-sans:var(--font-geist-sans);--font-mono:var(--font-geist-mono)}
 *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif} a{text-decoration:none;color:inherit}
