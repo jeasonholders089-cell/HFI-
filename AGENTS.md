@@ -1,18 +1,21 @@
 # HFI 家长成长营 · 项目工作规范
 
 > 本文件是本项目的最高约定。任何开发、文档、数据操作前先读这里。
+> **本文件以实际代码为准书写**（2026-09-17 与 `HFI-a3e3bf9e/` 逐项核对过）。
+> 文档与代码冲突时，以代码为准，然后改文档——既不让文档跑到代码前面，也不让文档落后于代码。
 > 规范的修改方式是：先改本文件，再改实践。
+
+---
 
 ## 一、项目定位
 
 **面向 C 端（家长）的产品**，线下活动是它的第一个使用场景。
 
-家长通过两条并列路径之一，**看见孩子的成长方向**——
-从兴趣与特质出发，看到这些方向通向哪些美国本科专业、哪些院校、未来可以怎么走；
-所有数据匿名汇总后，在现场大屏的美国地图上呈现出来。
+家长通过两条并列路径之一，**看见孩子的成长方向**——从兴趣与特质出发，看到这些方向通向
+哪些美国本科专业、哪些院校、未来可以怎么走；所有数据匿名汇总后，在现场大屏呈现出来。
 
 **重心是成长探索与成长方向探索，不是升学规划。**
-院校和专业是让方向"看得见"的落点，不是要去考的目标；一旦按报考清单呈现，产品就掉进中介赛道了。
+院校和专业是让方向"看得见"的落点，不是要去考的目标。
 
 **产品的核心链条（任何设计都不能断掉这条链）：**
 
@@ -20,72 +23,91 @@
 兴趣特质 → 成长方向 → 方向在世界上通向哪里（专业 / 院校 / 路径） → 地图
 ```
 
-**一期不建院校-专业库**：院校和专业由 AI 直接推荐，配一张院校坐标表负责地图打点。
-坐标表来自美国教育部官方数据源 College Scorecard（`data/university_coords.csv`，
-含校名/别名/州/经纬度），**全量导入而不是人工挑选**——全量比人工筛选更省事，覆盖率也更高。
-推荐准确度靠 Prompt 约束 + "以官网为准" + 官网链接三道兜底。
+**不可逾越的底线：不预测录取结果，不使用"冲刺 / 匹配 / 保底"话术，不判定孩子适合什么。
+只给路径，不给结论。**（唯一例外见第五节。）
 
-两条路径（都是一等公民，都要做完整）：
+**一期不建院校-专业库**：院校与专业由 AI 直接推荐，准确度靠 Prompt 约束 + "以官网为准" +
+官网链接三道兜底。现状是 `lib/university-names.ts` 里一张手写的院校别名表，只负责把家长或
+AI 写的校名归一化；全量院校坐标表尚未导入。
 
-| 路径 | 入口 | 使用者 |
+产品正式名称：**HFI 家长成长营**（英文名 HFI Family Growth Camp，用于英文界面与大屏）。
+
+---
+
+## 二、页面与接口（以代码为准）
+
+| 路由 | 说明 | 状态 |
+| --- | --- | --- |
+| `/` | 首页：两条路径入口 + 实时摘要 + 批量录入 + AI 试用框 | 已建 |
+| `/register` | 家长自助填写，单页八字段（英文名 / 年龄 / 梦想学校 / 兴趣 / 喜欢的活动 / 孩子自述 / 家长观察 / 梦想职业选填） | 已建 |
+| `/explore` | 现场全景：方向统计、特质词云、逐条 AI 分析、数据清空 | 已建 |
+| `/entry` | 工作人员单条访谈录入（需访问口令） | 未建 |
+| `/child/[token]` | 孩子成长画像，凭短码回看 | 未建 |
+| `/register/success` | 提交成功：轻画像 + 回看码 | 未建 |
+| `/colleges` | 选校地图 | 未建，规格见 `docs/05`，界面见 `docs/06` |
+
+接口（全部已建）：`/api/health`、`/api/children`、`/api/children/bulk`、
+`/api/children/analyze`、`/api/children/summary`、`/api/children/wordcloud`、
+`/api/children/clear`、`/api/children/[id]`。
+
+**两条用户路径：**
+
+| 路径 | 当前入口 | 使用者 |
 | --- | --- | --- |
 | A · 家长自助填写 | `/register`，零注册 | 家长（手机） |
-| B · 工作人员访谈录入 | `/entry`，需访问口令 | 工作人员（电脑/平板） |
+| B · 工作人员录入 | 首页的批量录入（Excel / 文本）；`/entry` 单条访谈录入页未建 | 工作人员（电脑） |
 
-产品正式名称：**HFI 家长成长营**（英文名 HFI Family Growth Camp，用于大屏与英文界面）
+---
 
-一期范围：**没有管理后台**——当前没有运营角色，不为主办方做任何管理页面。
-产品一共五个页面：家长端 `/register`、工作人员端 `/entry`、画像页 `/child/[token]`、
-大屏 `/explore`、首页 `/`。不做批量操作，不做账号体系。
-详见 `docs/02-产品PRD.md` 第 1.5 节。
-
-**地图必须零外部依赖**：用本地 TopoJSON 画美国州界 + 院校点，
-不使用 OSM 官方瓦片或任何在线地图服务（政策风险 + 国内访问不稳）。
-详见 `docs/02-产品PRD.md` 8.2。
-
-不可逾越的底线：**不预测录取结果，不使用"冲刺 / 匹配 / 保底"话术，
-不判定孩子适合什么。只给路径，不给结论。**
-
-## 二、目录结构
+## 三、目录结构
 
 ```
-AGENTS.md              # 本文件：项目规范
-.env                   # 环境变量与密钥（不进版本库）
-docs/                  # 需求、PRD、架构、决策记录
-docs/references/       # 原始素材与外部资料存档（只读，不改写）
-output/                # 面向客户/外部的交付物（PDF、报告、导出文件）
-output/pdf/            # 文档类交付物的 PDF 版本
-data/                  # 种子数据：院校坐标表、特质词库、方向分类（CSV）
-assets/                # 品牌素材：海报、Logo、字体、院校 Logo
-scripts/               # 开发辅助脚本：抓取/整理种子数据、生成初始 CSV
-src/                   # 应用代码（Next.js，M1 启动后创建）
-tmp/                   # 临时文件（已被 .gitignore 忽略）
+AGENTS.md                # 本文件：项目规范
+README.md                # 给接手的人看：定位、技术栈、本地起服务、部署
+docs/                    # 需求、规格、草图
+docs/references/         # 原始素材存档（当前为空，原素材已移到 F:\AI_Agent\HFI一版文档）
+output/pdf/              # 面向外部的交付物成品
+scripts/                 # 开发辅助脚本（md_to_pdf.py 等）
+tmp/                     # 临时文件（已被 .gitignore 忽略）
+HFI-a3e3bf9e/            # 应用代码与部署配置（Next.js 项目根）
+HFI-a3e3bf9e.tar.gz      # 应用的历史压缩包，与目录重复，待处理
+.env                     # 注意：这个文件不是本项目的，见第六节
 ```
 
-> `docs/` 是源文档，`output/` 是从源文档生成、可直接发出去的成品。改内容改 `docs/`，然后重新生成 `output/`。
+**应用内部结构**（`HFI-a3e3bf9e/`）：
 
-## 三、命名约定
+```
+app/                     # Next.js App Router
+  page.tsx               # 首页（含批量录入、二维码、AI 试用）
+  register/page.tsx      # 家长自助填写
+  explore/page.tsx       # 现场全景
+  api/children/...       # 数据接口
+  layout.tsx globals.css
+db/schema.ts             # 全部表结构定义（唯一）
+drizzle/                 # 版本化迁移 SQL + meta（不要手改）
+lib/                     # db / inference / 领域逻辑
+public/                  # 静态资源
+compose.yaml Dockerfile  # 平台部署配置
+```
+
+**待归位**：应用目录计划从 `HFI-a3e3bf9e/` 改名为 `src/`，并把 `HFI-a3e3bf9e.tar.gz`
+移进 `tmp/` 或删除。改名后本文件与 README 要同步更新。
+
+---
+
+## 四、命名约定
 
 | 类型 | 规则 | 示例 |
 | --- | --- | --- |
-| 文档 | `NN-主题.md`，编号即阅读顺序 | `01-需求梳理.md` |
-| 种子数据 | `snake_case` + 扩展名 | `universities.csv` |
-| 数据库表 | `snake_case` 复数 | `children`、`ai_analyses` |
-| 数据库字段 | `snake_case` | `entry_path`、`access_token` |
+| 文档 | `NN-主题.md`，编号即阅读顺序 | `05-选校地图模块.md` |
+| 种子数据 | `snake_case` + 扩展名 | `university_coords.csv` |
+| 数据库表 | `snake_case` 复数 | `children`、`app_meta` |
+| 数据库字段 | 代码里 camelCase，库里 snake_case | `submissionKey` → `submission_key` |
 | React 组件 | `PascalCase.tsx` | `UniversityMap.tsx` |
-| 工具函数 | `camelCase.ts` | `buildAnalysisPrompt.ts` |
+| 工具函数 | `camelCase.ts` | `growth-categories.ts` |
 | commit | 英文，前缀 `feat/fix/docs/chore` | `feat: add registration form` |
 
-## 四、工作规则
-
-1. **先文档后代码**：需求变化先更新 `docs/`，再动 `src/`。代码不允许跑在文档前面。
-2. **先数据后页面**：任何新功能，先定义数据结构，再设计界面。
-3. **数据最小化**：不采集真实姓名、手机号、身份证、照片等非必要儿童个人信息。
-4. **密钥只放 `.env`**：任何密钥、Token 不写进代码，不提交到仓库。
-5. **改完必验**：每个 Milestone 结束跑 `build` / `lint`，并手动走通该模块的关键路径。
-6. **语言约定**：文档用中文；代码、变量名、commit message 用英文。
-7. **一里程碑一提交**：每完成一个 Milestone 打一次 commit，保证可回退。
-8. **面向现场设计**：任何功能先问"活动当天现场网络不稳、家长在排队、现场屏幕上正开着展示页"时还能不能用。
+---
 
 ## 五、不可逾越的产品边界
 
@@ -93,12 +115,122 @@ tmp/                   # 临时文件（已被 .gitignore 忽略）
 - AI 输出必须是"发展方向探索"，不得表述为"判定 / 适合 / 应该"。
 - 单孩子画像页面**不得**使用可遍历的自增 ID，必须使用随机 token。
 - 未获得家长知情同意前，不采集、不分析、不展示该儿童数据。
+- **不采集真实姓名、手机号、微信、身份证、照片**。表单里的"英文名"是昵称性质，不要求真名。
+- 删除类接口必须校验同源（现有 `/api/children/clear` 与 `/api/children/[id]` 都是这个做法）。
 
-## 六、当前阶段
+### 唯一的例外：`/colleges` 的黑马匹配
 
-- [x] 原始对话存档（`docs/references/`）
-- [x] 需求梳理（`docs/01-需求梳理.md`）
-- [x] 产品 PRD（`docs/02-产品PRD.md`）
-- [x] 地图模块需求方案（`docs/03-地图模块需求方案.md`）
-- [ ] 技术方案与数据库 Schema（`docs/04-技术方案.md`）
-- [ ] M1 项目初始化
+2026-09-17 产品决策：允许 `/colleges` 选校地图的「黑马匹配」把院校标注为
+「偏冲 / 冲·适中 / 适中 / 较稳」四档。**这是全站唯一允许出现该话术的地方**，三条约束缺一不可：
+
+1. **只出现在 `/colleges`**——首页、大屏 `/explore`、孩子画像 `/child/[token]` 不得出现；
+2. **必须常驻显示局限说明**——仅基于「SAT 中位区间 × 整体录取率」两个维度，未纳入 GPA、
+   课程难度、申请专业、国际生身份、资助需求、批次等因素，置信度低，不构成录取预测或承诺；
+3. **不得与个体画像绑定**——不得出现"某个孩子的名字 + 匹配档位"的组合。
+
+---
+
+## 六、技术现状（以代码为准）
+
+| 项 | 事实 |
+| --- | --- |
+| 框架 | Next.js 16.2.6（App Router）+ React 19.2.4 + TypeScript 5 |
+| 样式 | Tailwind CSS 4；主题色定义在 `app/globals.css`（底色 `#f4f0e6`，主色 `#17382f`） |
+| 包管理 | pnpm（Dockerfile 里 pin pnpm@10，配淘宝 registry 加速） |
+| 数据库 | Postgres，经 Drizzle ORM（`drizzle-orm` 0.44.2 + `drizzle-kit` 0.31.4 + `pg`） |
+| AI | `@inferencesh/sdk` 走**平台代理**调用；模型写死 `anthropic/claude-haiku-4-5` |
+| 表格导入 | `xlsx`（首页的 Excel 批量录入） |
+| 二维码 | `qrcode`（首页生成手机问卷二维码） |
+
+### AI 接法的三条硬规矩
+
+1. **key 永远不落前端**——走 `NEXT_PUBLIC_INFERENCE_PROXY_URL` 指向的平台代理，
+   客户端不出现 apiKey。
+2. **重试只在 `lib/inference.ts` 里做**——平台有并发闸（每用户同时 3 个任务），
+   提交撞闸时按 3s / 6s / 12s 指数退避；业务代码禁止自写重试循环。
+3. **AI 出参一律走容错解析**，且失败不阻断入库——现有做法是问卷先落库，AI 失败返回 202
+   并提示"可在活动全景点击开始分析"。
+
+### 方向分类体系（4 类，以代码为准）
+
+`人文科学` · `社会科学` · `自然科学` · `艺术`（见 `lib/growth-categories.ts`）。
+Prompt 里写死了归类规则：工程计算机归自然科学，商科归社会科学，设计归艺术。
+AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 4 类之一。
+
+### 数据库纪律
+
+- 表结构只在 `db/schema.ts` 声明；业务代码一律经 `lib/db.ts` 的 `getDb()` 读写，
+  **禁止 `new Pool`、禁止手写 DDL**。
+- 改 schema 后跑 `pnpm exec drizzle-kit generate` 产出 `drizzle/` 下的版本化 SQL，与代码一起提交。
+- 应用与发布**只 apply 已生成的迁移**（平台按 `compose.yaml` 的 `luffy.migrate` 执行 `drizzle-kit migrate`）。
+- **禁止 `drizzle-kit push` 打生产**——push 是开发期 sync，`--force` 会静默删列毁数据。
+
+当前两张表：`children`（问卷 + AI 结果）、`app_meta`。AI 结果直接存在 `children` 的
+`ai_directions` / `ai_traits` / `ai_summary` 三个字段里，没有独立的分析表。
+
+### 部署
+
+平台托管，**不要用 git push 部署**。配置写在 `compose.yaml` 的标签里：
+`luffy.entrypoint` / `luffy.port=3000` / `luffy.database=postgres` /
+`luffy.migrate=pnpm exec drizzle-kit migrate`。不要写 `ports` / `privileged` / host 网络。
+
+### 环境变量
+
+| 变量 | 用途 |
+| --- | --- |
+| `DATABASE_URL` | 平台注入的 Postgres 连接串（托管库带 `sslmode=require`，见 `lib/pg-dsn.ts`） |
+| `NEXT_PUBLIC_INFERENCE_PROXY_URL` | 推理代理地址；build 期会被嵌进客户端 bundle |
+| `LUFFY_PREVIEW_ORIGINS` | 沙箱预览反代域名，供 Next dev 放行跨源（见 `next.config.ts`） |
+
+> **注意：根目录的 `.env` 不是本项目的。** 它有 161 行，内容是另一个项目的配置
+> （MySQL、云服务器 IP 明文、`PORT` / `FRONTEND_URL`）。本项目应用读的是
+> `HFI-a3e3bf9e/.env`，目前只有一行 `DATABASE_URL`，指向本地 Postgres（127.0.0.1:5434）。
+> 这个文件已被 `.gitignore` 忽略、没进版本库，但放在项目根目录会误导人，应当移走。
+
+---
+
+## 七、工作规则
+
+1. **先文档后代码**：需求变化先更新 `docs/`，再动代码。
+2. **先数据后页面**：新功能先定义数据结构，再设计界面。
+3. **数据最小化**：见第五节。
+4. **密钥只放 `.env`**：任何密钥、Token 不写进代码，不提交到仓库。
+5. **改完必验**：跑 `pnpm build` / `pnpm lint`，并手动走通该模块的关键路径。
+6. **语言约定**：文档用中文；代码、变量名、commit message 用英文。
+7. **一里程碑一提交**：每完成一个里程碑打一次 commit，保证可回退。
+8. **面向现场设计**：任何功能先问"活动当天现场网络不稳、家长在排队、屏幕上正开着展示页"
+   时还能不能用。
+
+---
+
+## 八、当前阶段
+
+**已完成**
+
+- 应用骨架跑通：Next.js App Router + Postgres + Drizzle 版本化迁移（4 个迁移）
+- 家长自助填写 `/register`（单页八字段，含幂等提交与字段校验）
+- 首页 `/`：两条路径入口 + 实时摘要 + 批量录入（Excel / 文本）+ 问卷二维码 + AI 试用框
+- 现场全景 `/explore`：方向统计、特质词云、逐条 AI 分析（带进度与失败记录）、数据清空
+- AI 接入：走平台代理，模型 `anthropic/claude-haiku-4-5`，4 类方向分类
+- 8 个数据接口
+
+**进行中**
+
+- 选校地图 `/colleges`：规格与界面已定稿（`docs/05`、`docs/06`），未动代码
+
+**未开始**
+
+- `/entry` 工作人员单条访谈录入
+- `/child/[token]` 孩子成长画像（产品的价值交付页）
+- `/register/success` 提交成功页
+- 院校全量坐标表导入（当前只有手写别名表）
+
+---
+
+## 九、待归位（与本规范不符、尚未处理的现状）
+
+1. **应用代码没进版本库**——`HFI-a3e3bf9e/` 与 `HFI-a3e3bf9e.tar.gz` 都是未跟踪状态，
+   代码目前没有任何版本保护。**开工前必须先纳入 git。**
+2. **目录改名**——`HFI-a3e3bf9e/` → `src/`；`HFI-a3e3bf9e.tar.gz` 移进 `tmp/` 或删除。
+3. **根目录 `.env`**——不是本项目的东西，移走。
+4. **`package.json` 的 `name`** 还是 `luffy-app`，应改为 `hfi-family-growth-camp`。
