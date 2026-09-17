@@ -6,11 +6,13 @@ import { SiteNav } from "@/components/site-nav";
 import * as XLSX from "xlsx";
 import { BULK_FIELDS, templateRows } from "@/lib/bulk-import";
 import { pendingProfileIds } from "@/lib/child-profile";
+import { parseModelJson } from "@/lib/model-json";
 import QRCode from "qrcode";
 
 
 type Analysis = { directions?: {name:string;reason:string;path:string}[]; traits?: string[] };
-function parseJson(raw: string): Analysis | null { try { const s=raw.indexOf("{"); const e=raw.lastIndexOf("}"); return s>=0?JSON.parse(raw.slice(s,e+1)):null; } catch { return null; } }
+// 和四个服务端调用点同源：模型在字符串里写裸引号时也能解析出来（lib/model-json.ts）
+function parseJson(raw: string): Analysis | null { try { return parseModelJson<Analysis>(raw); } catch { return null; } }
 
 
 export default function Page() {
@@ -20,7 +22,7 @@ export default function Page() {
 async function loadPending(){ try{ const r=await fetch('/api/children/summary',{cache:'no-store'}); const j=await r.json(); const list=(j.children||[]) as {id:number;aiDirections:string|null}[]; setPendingIds(pendingProfileIds(list)); }catch{ /* 读不到就不显示这个入口，不打扰 */ } }
 useEffect(()=>{ let cancelled=false; fetch('/api/children/summary',{cache:'no-store'}).then(r=>r.ok?r.json():null).then((j:{children?:{id:number;aiDirections:string|null}[]}|null)=>{ if(cancelled||!j)return; setPendingIds(pendingProfileIds(j.children||[])) }).catch(()=>{ /* 读不到就不显示这个入口 */ }); return ()=>{ cancelled=true } },[]);
 /** 顺序跑批：一批一条，进度看得见，也不撞平台并发闸。 */
-async function runAnalyze(ids:number[]){ if(analyzing||!ids.length)return; setAnalyzing(true); setProgress(`正在生成 0/${ids.length}…`); let ok=0,fail=0; try{ for(let i=0;i<ids.length;i++){ setProgress(`正在生成 ${i+1}/${ids.length}…`); try{ const r=await fetch('/api/children/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:ids[i]})}); if(!r.ok){ const j=await r.json().catch(()=>({})); throw Error((j as {error?:string}).error||'生成失败'); } ok++; }catch{ fail++; } } setMessage(fail?`画像生成完成：成功 ${ok} 条，失败 ${fail} 条。失败的可以再点一次重试。`:`画像生成完成：${ok} 条全部成功。去「活动全景」看这一场的方向统计。`); }finally{ setAnalyzing(false); setProgress(""); setImportedIds([]); void loadPending(); } }
+async function runAnalyze(ids:number[]){ if(analyzing||!ids.length)return; setAnalyzing(true); setProgress(`正在生成 0/${ids.length}…`); let ok=0,fail=0; const reasons:string[]=[]; try{ for(let i=0;i<ids.length;i++){ setProgress(`正在生成 ${i+1}/${ids.length}…`); try{ const r=await fetch('/api/children/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:ids[i]})}); if(!r.ok){ const j=await r.json().catch(()=>({})); throw Error((j as {error?:string}).error||'生成失败'); } ok++; }catch(e){ fail++; reasons.push(e instanceof Error?e.message:'生成失败'); } } const why=[...new Set(reasons)].slice(0,2).join('；'); setMessage(fail?`画像生成完成：成功 ${ok} 条，失败 ${fail} 条${why?`（${why}）`:''}。失败的可以再点一次重试。`:`画像生成完成：${ok} 条全部成功。去「活动全景」看这一场的方向统计。`); }finally{ setAnalyzing(false); setProgress(""); setImportedIds([]); void loadPending(); } }
 async function analyzeImported(){ await runAnalyze(importedIds) }
 async function analyzePending(){ await runAnalyze(pendingIds) }/** 下载导入模板：表头由字段定义生成（lib/bulk-import.ts），不会和导入端漂移。 */
 function downloadTemplate(){ const rows=templateRows(); const sheet=XLSX.utils.aoa_to_sheet(rows); sheet["!cols"]=BULK_FIELDS.map(()=>({wch:18})); const book=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book,sheet,"孩子信息"); XLSX.writeFile(book,"孩子信息-导入模板.xlsx"); setMessage("模板已下载：第一行是表头（别改），第二行起每个孩子一行。填好后点「上传 Excel」再「解析并入库」。"); }async function importExcel(){if(!file||importing)return;setImporting(true);setMessage('正在解析 Excel…');try{const book=XLSX.read(await file.arrayBuffer());const rows=XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]]);if(!rows.length){setMessage('这个工作表里没有数据行——第一行要写表头，从第二行开始才是孩子');return;}await importRows(rows);}catch{setMessage('Excel 解析失败，请确认文件没有损坏、且第一行是表头');}finally{setImporting(false);}}

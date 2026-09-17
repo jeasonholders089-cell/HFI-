@@ -5,6 +5,7 @@ import {runInference} from '@/lib/inference';
 import {and,gte,lt} from 'drizzle-orm';
 import {beijingDayRange,parseSessionParam} from '@/lib/school-session';
 import {readWordCloud,writeWordCloud} from '@/lib/wordcloud-cache';
+import {parseModelJson} from '@/lib/model-json';
 export const maxDuration=300;
 
 /**
@@ -37,7 +38,7 @@ export async function POST(req:Request){
 system_prompt:`你是儿童兴趣探索顾问。根据提供的所有学生信息生成活动特质词云。归纳并语义合并相似词，例如观察力强、善于观察、敏锐合为观察敏锐；有创意、想象力强可按具体语义归纳为想象力丰富。最终9至12个简短中文特质，每个词通常4到6字，不要重复近义词。**每个特质都必须有证据**：宁可少给也不要为了凑数虚构——只有一两个孩子体现的、或含糊到看不出行为的不算。**两个特质不要指向同一批孩子**：childIds 完全重合就是把同一批孩子换个说法再说一遍，属于凑数，应当合并成一个。不作诊断、不作能力定论。根据学生原始自述、活动、兴趣、家长观察找证据。输出严格JSON：{"groups":[{"word":"观察敏锐","childIds":[1,2]}]}。childIds只能包含输入中真实存在且有该特质依据的学生ID，同一孩子同一特质只算一次，一个孩子可以对应多个特质。不要输出姓名、解释或markdown。`
  });
  const raw=(task.output as {response?:string}|null)?.response||'';
- const result=JSON.parse(raw.slice(raw.indexOf('{'),raw.lastIndexOf('}')+1));
+ const result=parseModelJson<{groups?:{word:unknown;childIds:unknown}[]}>(raw);
  /*
   只要求"至少 1 组"。**超过上限不再报错，改成按人数截断**（2026-09-17 实测调整）：
   产品规则是"最多显示 N 个词"（页面文案），而模型并不总听话——实测 deepseek-chat

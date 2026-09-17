@@ -35,12 +35,34 @@ export function pickChannel(env: EnvLike = process.env): Channel {
   return "none";
 }
 
+/**
+ * 输出长度上限。2026-09-18 加：不显式给 `max_tokens` 时由中转站决定默认值，
+ * 一旦偏小，analyze 的三个方向 + 中文依据就会被截断，返回半个 JSON。
+ *
+ * 说明：它**不是**"12 个孩子要跑三次"的根因——那次抓到原始返回后确认，
+ * 失败样本的 `finish_reason` 全是 `stop`，真正的问题在 `lib/model-json.ts`
+ * （模型在 reason 里写了没转义的英文双引号）。这里定死长度属于顺手补的卫生习惯。
+ */
+export const CHAT_MAX_TOKENS = 2048;
+
+/**
+ * 采样温度。调低的原因：分类与特质归纳都要**稳定**，而不是每次换一套说法。
+ * （词云即使温度低也不会完全重复，但它另有缓存兜底。）
+ */
+export const CHAT_TEMPERATURE = 0.3;
+
 /** 拼 OpenAI 兼容的请求体（抽出来单测，不用真的打网络）。 */
 export function buildChatBody(model: string, input: ChatInput): Record<string, unknown> {
   const messages: { role: string; content: string }[] = [];
   if (input.system_prompt) messages.push({ role: "system", content: input.system_prompt });
   messages.push({ role: "user", content: input.text ?? "" });
-  return { model, messages, stream: false };
+  return {
+    model,
+    messages,
+    stream: false,
+    max_tokens: CHAT_MAX_TOKENS,
+    temperature: CHAT_TEMPERATURE,
+  };
 }
 
 /** 从 OpenAI 兼容响应里取正文；取不到就抛（宁可失败也不喂给业务层半个结果）。 */
@@ -53,6 +75,18 @@ export function parseChatResponse(body: unknown): string {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 取 `choices[0].finish_reason`。`"length"` 意味着**输出被 max_tokens 截断**，
+ * 此时 `content` 多半是半个 JSON——直接报"格式异常"会让人以为模型不听话，
+ * 其实只是长度没给够，所以单独识别成一句人话。
+ */
+export function detectTruncation(body: unknown): string | null {
+  const finish = (body as { choices?: { finish_reason?: unknown }[] } | null)?.choices?.[0]
+    ?.finish_reason;
+  if (finish !== "length") return null;
+  return `模型输出被截断（达到 ${CHAT_MAX_TOKENS} token 上限），请重试这一条`;
+}
 
 /**
  * 调一次 AI98。返回体形状**对齐原 SDK 的 TaskDTO**（`{status, output:{response}}`），
@@ -81,5 +115,8 @@ export async function runViaAi98(cfg: Ai98Config, input: ChatInput, fetchImpl = 
     const msg = (body as { error?: { message?: unknown } } | null)?.error?.message;
     throw new Error(typeof msg === "string" && msg.trim() ? msg : `模型接口返回 ${res.status}`);
   }
+  // 截断要在这里拦下来：响应体只读一次，交给上层的就是完整的 JSON 字符串。
+  const truncated = detectTruncation(body);
+  if (truncated) throw new Error(truncated);
   return { status: "completed", output: { response: parseChatResponse(body) } };
 }

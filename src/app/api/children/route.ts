@@ -3,10 +3,11 @@ import { getDb } from "@/lib/db";
 import { children } from "@/db/schema";
 import { runInference } from "@/lib/inference";
 import { CATEGORIES, CATEGORY_ENUM, CATEGORY_RULES } from "@/lib/growth-categories";
+import { parseModelJson } from "@/lib/model-json";
 import { eq } from "drizzle-orm";
 const APP="anthropic/claude-haiku-4-5";
-const SYSTEM_PROMPT=`你是HFI家长成长营的美国教育探索顾问。基于孩子八项信息输出严格JSON，只包含三个学术方向及其依据：{"directions":[{"category":"${CATEGORIES.join('|')}中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷中的具体回答说明依据"}]}。必须恰好3个学术方向，每个方向category必须从${CATEGORY_ENUM}中选一个最适合的。判定规则：${CATEGORY_RULES}只输出这三个方向与依据，不要输出画像总结、特质或其他字段。梦想职业为空表示尚未提供，不得推断孩子已经有明确职业目标。建议是探索性意见，不是录取预测或能力定论。`;
-function parse(raw:string){const s=raw.indexOf("{");const e=raw.lastIndexOf("}");if(s<0||e<0)throw Error("AI返回格式异常");return JSON.parse(raw.slice(s,e+1));}
+const SYSTEM_PROMPT=`你是HFI家长成长营的美国教育探索顾问。基于孩子八项信息输出严格JSON，只包含三个学术方向及其依据：{"directions":[{"category":"${CATEGORIES.join('|')}中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷中的具体回答说明依据"}]}。必须恰好3个学术方向，每个方向category必须从${CATEGORY_ENUM}中选一个最适合的。判定规则：${CATEGORY_RULES}只输出这三个方向与依据，不要输出画像总结、特质或其他字段。梦想职业为空表示尚未提供，不得推断孩子已经有明确职业目标。建议是探索性意见，不是录取预测或能力定论。**reason 里如需引用问卷原话，一律用中文引号「」包起来，禁止在 JSON 字符串里出现英文双引号。**`;
+function parse(raw:string){return parseModelJson<{directions?:unknown[]}>(raw);}
 export async function POST(req:Request){try{const body=await req.json();const keys=["englishName","age","dreamSchool","interests","activities","selfDescription","parentObservation"];const labels:Record<string,string>={englishName:"英文名",age:"年龄",dreamSchool:"梦想学校",interests:"兴趣",activities:"喜欢的活动",selfDescription:"孩子自我描述",parentObservation:"家长观察"};const missing=keys.filter(k=>body[k]==null||!String(body[k]).trim());if(missing.length)return NextResponse.json({error:"请填写："+missing.map(k=>labels[k]).join("、")+"（梦想职业为选填）"},{status:400});if(typeof body.submissionKey!=='string'||!/^[0-9a-f-]{36}$/i.test(body.submissionKey))return NextResponse.json({error:'提交标识无效，请刷新页面重试'},{status:400});
 const age=Number(body.age);if(!Number.isInteger(age)||age<1||age>100)return NextResponse.json({error:'请输入有效年龄'},{status:400});
 const input={englishName:String(body.englishName).trim(),age,dreamSchool:String(body.dreamSchool).trim(),interests:String(body.interests).trim(),activities:String(body.activities).trim(),selfDescription:String(body.selfDescription).trim(),parentObservation:String(body.parentObservation).trim(),dreamCareer:String(body.dreamCareer??" ").trim()};
