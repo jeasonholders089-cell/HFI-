@@ -29,7 +29,9 @@ export type GeoLabel = { x: number; y: number; zh: string; en: string; land: boo
 /** 48 个州名标注（缺 DE / RI / DC）。 */
 export const STATE_LABELS: readonly StateLabel[] = [
   { a: "AL", z: "阿拉巴马", x: 672, y: 432, f: 9.5 },
-  { a: "AK", z: "阿拉斯加", x: 102, y: 523, f: 9.5 },
+  // AK / HI 的锚点跟着插图区的变换走（见 build-us-map.ts 的 INSET_TRANSFORM）：
+  // 阿拉斯加右移 57 并缩到 0.86、夏威夷右移 20，文字要落在形状中心
+  { a: "AK", z: "阿拉斯加", x: 149, y: 511, f: 9.5 },
   { a: "AZ", z: "亚利桑那", x: 208, y: 382, f: 11 },
   { a: "CO", z: "科罗拉多", x: 332, y: 290, f: 11 },
   { a: "FL", z: "佛州", x: 780, y: 516, f: 9.5 },
@@ -54,7 +56,7 @@ export const STATE_LABELS: readonly StateLabel[] = [
   { a: "NM", z: "新墨西哥", x: 311, y: 393, f: 11 },
   { a: "AR", z: "阿肯色", x: 564, y: 391, f: 9.5 },
   { a: "CA", z: "加州", x: 96, y: 310, f: 11 },
-  { a: "HI", z: "夏威夷", x: 309, y: 579, f: 6.8 },
+  { a: "HI", z: "夏威夷", x: 329, y: 579, f: 6.8 },
   { a: "IA", z: "爱荷华", x: 540, y: 227, f: 9.5 },
   { a: "KY", z: "肯塔基", x: 694, y: 323, f: 9.5 },
   { a: "MD", z: "马里兰", x: 828, y: 260, f: 6.8 },

@@ -6,6 +6,7 @@ import { CollegesProvider } from "../colleges-context";
 import { CollegesMap } from "../colleges-map";
 import { COLLEGES } from "@/lib/colleges-data";
 import { HOME_VIEW, MAP_H, MAP_W } from "@/lib/colleges-project";
+import { NEIGHBOR_LAND, US_INSETS } from "@/lib/us-map-paths";
 
 /**
  * 地图的点选行为（docs/08 §6.2 / §6.3 / §7.3）。
@@ -93,10 +94,13 @@ describe("CollegesMap 的州悬停高亮（§6.4）", () => {
   it("悬停某个州时只改那一条路径的填充，移开就恢复", () => {
     const { svg, restore } = renderMap();
     const svgEl = svg as unknown as SVGSVGElement;
-    const paths = svgEl.querySelectorAll("path");
-    expect(paths.length).toBeGreaterThan(0);
+    // 州路径 = 美国分组里**直接子节点**的那些 path（插图包在带 transform 的 <g> 里，
+    // 邻国陆地在另一组、用的是 --map-neighbor）
+    const usGroup = svgEl.querySelector("g.land-shadow") as SVGGElement;
+    const states = [...usGroup.children].filter((c) => c.tagName.toLowerCase() === "path") as SVGPathElement[];
+    expect(states.length).toBe(49);
 
-    const target = paths[0];
+    const target = states[0];
     const before = target.getAttribute("fill");
     fireEvent.pointerEnter(target);
     expect(target.getAttribute("fill")).not.toBe(before);
@@ -115,6 +119,38 @@ describe("CollegesMap 的州悬停高亮（§6.4）", () => {
     fireEvent.click(reset);
     // 复位后 viewBox 回到整图
     expect(svg.getAttribute("viewBox")).toBe(`${HOME_VIEW.x} ${HOME_VIEW.y} ${HOME_VIEW.w} ${HOME_VIEW.h}`);
+    restore();
+  });
+});
+
+describe("底图分层（2026-09-17 补）", () => {
+  it("四层都在：海洋矩形 → 邻国陆地 → 美国（本土 + AK/HI 插图）", () => {
+    const { svg, restore } = renderMap();
+    const el = svg as unknown as SVGSVGElement;
+
+    // ① 海洋：整块矩形 + 渐变
+    expect(el.querySelector("linearGradient#map-oceang")).not.toBeNull();
+    const rect = el.querySelector("rect");
+    expect(rect?.getAttribute("fill")).toBe("url(#map-oceang)");
+    expect(Number(rect?.getAttribute("width"))).toBe(MAP_W);
+    expect(Number(rect?.getAttribute("height"))).toBe(MAP_H);
+
+    // ② 邻国陆地：加拿大 / 墨西哥 / 巴哈马 / 古巴
+    const neighbors = [...el.querySelectorAll("path")].filter(
+      (p) => p.getAttribute("fill") === "var(--map-neighbor)",
+    );
+    expect(neighbors).toHaveLength(NEIGHBOR_LAND.length);
+    expect(neighbors).toHaveLength(4);
+
+    // ③ 美国：49 个州 + 2 个插图，整组带投影
+    const usGroup = el.querySelector("g.land-shadow");
+    expect(usGroup).not.toBeNull();
+    expect(usGroup?.querySelectorAll("path").length).toBe(49 + US_INSETS.length);
+
+    // 插图带 transform，且两个插图的州代码是 AK / HI
+    const insetGs = [...(usGroup?.querySelectorAll("g[transform]") ?? [])];
+    expect(insetGs).toHaveLength(2);
+    for (const g of insetGs) expect(g.getAttribute("transform")).toMatch(/translate|scale/);
     restore();
   });
 });

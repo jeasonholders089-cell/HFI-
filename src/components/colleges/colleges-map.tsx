@@ -35,7 +35,7 @@ import {
   type ViewBox,
 } from "@/lib/colleges-project";
 import { readFlag, writeFlag } from "@/lib/colleges-storage";
-import { STATE_PATHS } from "@/lib/us-map-paths";
+import { NEIGHBOR_LAND, STATE_PATHS, US_INSETS } from "@/lib/us-map-paths";
 import { CITY_LABELS, GEO_LABELS, STATE_LABELS } from "@/lib/us-map-labels";
 
 /**
@@ -370,11 +370,7 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
   const showTips = !tipsSeen && !dismissedTips;
 
   return (
-    <div
-      ref={wrapRef}
-      className="relative h-full w-full overflow-hidden"
-      style={{ background: "var(--map-ocean)" }}
-    >
+    <div ref={wrapRef} className="relative h-full w-full overflow-hidden" style={{ background: "var(--map-ocean)" }}>
       <svg
         ref={svgRef}
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
@@ -392,15 +388,54 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null };
         }}
       >
-        {/* 州界：鼠标悬停时该州提亮（给"我在看哪个州"的位置反馈） */}
-        <g>
+        {/* ① 海洋：整块矩形 + 竖向渐变（最底层，其余都压在上面） */}
+        <defs>
+          <linearGradient id="map-oceang" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style={{ stopColor: "var(--map-ocean-top)" }} />
+            <stop offset="1" style={{ stopColor: "var(--map-ocean-bottom)" }} />
+          </linearGradient>
+        </defs>
+        <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#map-oceang)" pointerEvents="none" />
+
+        {/* ② 邻国陆地（加拿大 / 墨西哥 / 巴哈马 / 古巴）：平涂，比美国本土深一档 */}
+        <g aria-hidden>
+          {NEIGHBOR_LAND.map((n) => (
+            <path
+              key={n.id}
+              d={n.d}
+              fill="var(--map-neighbor)"
+              stroke="var(--map-neighbor-line)"
+              strokeWidth={1 / Math.max(1, k ** 0.5)}
+              strokeLinejoin="round"
+              pointerEvents="none"
+            />
+          ))}
+        </g>
+
+        {/*
+          ③ 美国：本土 49 州 + 阿拉斯加 / 夏威夷插图，整组带投影。
+          投影是把它从邻国陆地上"抬起来"的那一下 —— 也是这三层里唯一的层级信号。
+        */}
+        <g className="land-shadow">
+          {US_INSETS.map((ins) => (
+            <g key={ins.st} transform={ins.transform}>
+              <path
+                d={ins.d}
+                fill="var(--map-land)"
+                stroke="var(--map-inset-line)"
+                strokeWidth={1.1 / Math.max(1, k ** 0.5)}
+                strokeLinejoin="round"
+                pointerEvents="none"
+              />
+            </g>
+          ))}
           {STATE_PATHS.map((s) => (
             <path
               key={s.st}
               d={s.d}
               fill={hoverState === s.st ? "var(--map-land-hover)" : "var(--map-land)"}
               stroke={hoverState === s.st ? "var(--map-land-hover-line)" : "var(--map-land-line)"}
-              strokeWidth={(hoverState === s.st ? 1.2 : 0.8) / Math.max(1, k ** 0.5)}
+              strokeWidth={(hoverState === s.st ? 1.2 : 1.1) / Math.max(1, k ** 0.5)}
               strokeLinejoin="round"
               onPointerEnter={() => setHoverState(s.st)}
               onPointerLeave={() => setHoverState((cur) => (cur === s.st ? null : cur))}

@@ -41,6 +41,8 @@
   /* 地图底图的海洋/陆地（浅色调，由底色派生） */
   --palette-31:#e8e6dc;
   --palette-32:#fdfcf8;
+  /* 邻国陆地的底色：比美国本土(#fdfcf8)深一档、比海洋浅一档，仍属米白色族 */
+  --palette-33:#efece3;
   /* —— 色板单一来源（palette ends）—— */
   --dot-uni:#8b6f45;
   --dot-pub:#1e4b3b;
@@ -51,8 +53,19 @@
   /* 州悬停高亮：直接复用色板里的 --palette-28，不引入新色相 */
   --map-land-hover:#e6e0d5;
   --map-land-hover-line:#8b6f45;
+  /* 底图分层（2026-09-17 补）：海洋 → 邻国陆地 → 美国（带投影） */
+  --map-ocean-top:#d6d2c7;
+  --map-ocean-bottom:#e8e6dc;
+  --map-neighbor:#efece3;
+  --map-neighbor-line:#f6f4ee;
+  --map-inset-line:#fdfcf8;
+  --map-shadow:rgba(122,106,82,.28);
   --map-glow:#7a6a52;
 }
+
+/* 美国这一层整组投影：把它从邻国陆地上"抬"起来。
+   参考实现用 SVG <filter>，这里用 CSS 的 drop-shadow 更简单，色值也留在 CSS 里。 */
+.land-shadow{filter:drop-shadow(0 2.5px 4px var(--map-shadow))}
 @theme inline{--color-background:var(--background);--color-foreground:var(--foreground);--font-sans:var(--font-geist-sans);--font-mono:var(--font-geist-mono)}
 *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif} a{text-decoration:none;color:inherit}
 
