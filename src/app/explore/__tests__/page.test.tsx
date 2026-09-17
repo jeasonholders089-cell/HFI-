@@ -38,12 +38,15 @@ const SUMMARY = {
   ],
 };
 
-function mockFetch(body: unknown = SUMMARY) {
-  // 声明出入参，测试才能断言"请求的是哪个 URL"（`fn.mock.calls[0][0]`）
-  // 形参只为让 `mock.calls` 带上类型（测试要断言请求的 URL）；函数体里不用它们
-  const fn = vi.fn(async (..._args: [string, RequestInit?]) => {
-    void _args;
-    return { ok: true, status: 200, json: async () => body } as unknown as Response;
+/**
+ * `cloud` 用来模拟词云缓存接口（`GET /api/children/wordcloud`）的返回 —— 按 URL 分流，
+ * 因为页面会同时打 summary 与 wordcloud 两个接口。
+ */
+function mockFetch(body: unknown = SUMMARY, cloud: unknown = { cloud: null, sessionId: null }) {
+  const fn = vi.fn(async (...args: [string, RequestInit?]) => {
+    const url = String(args[0]);
+    const payload = url.includes("/wordcloud") ? cloud : body;
+    return { ok: true, status: 200, json: async () => payload } as unknown as Response;
   });
   vi.stubGlobal("fetch", fn);
   return fn;
@@ -110,7 +113,7 @@ describe("/explore 的版面顺序与口径", () => {
       );
     });
 
-    it("切到「全部场次」→ 带 date=all（复盘口径，等于改版前）", async () => {
+  it("切到「全部场次」→ 带 date=all（复盘口径，等于改版前）", async () => {
       const fn = mockFetch();
       render(<Explore />);
       await screen.findByText("梦想院校地图");
@@ -118,6 +121,48 @@ describe("/explore 的版面顺序与口径", () => {
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "all" } });
 
       await waitFor(() => expect(fn.mock.calls.some((c) => String(c[0]).includes("date=all"))).toBe(true));
+    });
+  });
+
+  /**
+   * 词云缓存（docs/10 §3.8）。
+   *
+   * 为什么值得单独测：词云是现调 AI 算的、且**模型每次给的词都不一样**。
+   * 不缓存的话，大屏一刷新那块就变成"尚未生成"，或者点两次整屏的词全变。
+   * 所以"有缓存就直接显示"和"缓存不属于这一场就不显示"这两条必须钉住。
+   */
+  describe("词云缓存", () => {
+    const CACHED = {
+      cloud: {
+        groups: [
+          { word: "专注投入", count: 11 },
+          { word: "观察敏锐", count: 9 },
+        ],
+        total: 48,
+        generatedAt: "2026-09-18T02:00:00.000Z",
+      },
+      sessionId: "2026-09-18",
+    };
+
+    it("有缓存就直接显示，不用点「生成」", async () => {
+      mockFetch(SUMMARY, CACHED);
+      render(<Explore />);
+      await screen.findByText("梦想院校地图");
+
+      expect(await screen.findByText("专注投入")).toBeTruthy();
+      expect(screen.getByText("观察敏锐")).toBeTruthy();
+      expect(screen.getByText(/基于生成时的 48 位孩子/)).toBeTruthy();
+      // 有词云时按钮是"重新生成"
+      expect(screen.getByRole("button", { name: "重新生成" })).toBeTruthy();
+    });
+
+    it("缓存属于别的场次 → 不显示（否则家长看到的是别的场次的孩子）", async () => {
+      mockFetch(SUMMARY, { ...CACHED, sessionId: "2026-09-10" });
+      render(<Explore />);
+      await screen.findByText("梦想院校地图");
+
+      await waitFor(() => expect(screen.queryByText("专注投入")).toBeNull());
+      expect(screen.getByRole("button", { name: "生成" })).toBeTruthy();
     });
   });
 

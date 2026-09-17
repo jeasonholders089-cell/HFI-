@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -85,6 +85,14 @@ export default function Explore() {
   const [progress, setProgress] = useState("");
   const [failures, setFailures] = useState<Record<number, string>>({});
   const [cloud, setCloud] = useState<Cloud | null>(null);
+  /**
+   * 这份词云属于哪一场（`"all"` 或 `YYYY-MM-DD`）。
+   *
+   * 为什么不直接清空：切场次时旧的那份必须**立刻不可见**（否则家长看到的是上一场的词，
+   * 而新一场的缓存还没读回来）。用"属于哪一场"做身份，比在 effect 里 setCloud(null)
+   * 更稳，也避开了 react-hooks/set-state-in-effect 那条 lint。
+   */
+  const [cloudKey, setCloudKey] = useState<string | null>(null);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -100,6 +108,8 @@ export default function Explore() {
 
   /** 场次查询串：不选 = 不带参数（服务端默认"今天"）。 */
   const sessionQuery = () => (sessionDate ? `?date=${encodeURIComponent(sessionDate)}` : "");
+  /** 当前这一场的身份：`"all"` 或 `YYYY-MM-DD`（与服务端 `wordcloudKey` 同一套口径）。 */
+  const currentSessionId = () => (data?.session?.all ? "all" : (data?.session?.date ?? null));
   /**
    * 轮询要跳过"正在进行的工作人员动作"。用 ref 而不是 state：
    * 定时器的回调不该因为 busy 变了就重建（那会重置计时）。
@@ -120,6 +130,8 @@ export default function Explore() {
       const result = await r.json();
       if (!r.ok) throw Error(result.error || "词云生成失败");
       setCloud(result);
+      // 刚生成的这份属于"当前这一场"
+      setCloudKey(currentSessionId());
     } catch (e) {
       setCloudError(e instanceof Error ? e.message : "词云生成失败，请重试");
     } finally {
@@ -251,10 +263,35 @@ export default function Explore() {
     }
   }
 
- useEffect(() => {
-  void refresh();
+  useEffect(() => {
+    void refresh();
   // 切场次要重拉（docs/10 §3.7）
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionDate]);
+
+  /**
+   * 读词云缓存（docs/10 §3.8）。**切场次要重读** —— 缓存按场次隔离。
+   *
+   * 为什么要有这一步：词云是现调 AI 算的，不落库的话大屏刷新一次就没了。
+   * 这里只读缓存、**不调 AI**；点「生成」才走 POST 覆盖。
+   * 读失败当作"还没生成"，不弹错、不打扰现场。
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const qs = sessionDate ? `?date=${encodeURIComponent(sessionDate)}` : "";
+    fetch(`/api/children/wordcloud${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { cloud?: Cloud | null; sessionId?: string | null } | null) => {
+        if (cancelled || !j?.cloud || !Array.isArray(j.cloud.groups)) return;
+        setCloud(j.cloud);
+        setCloudKey(j.sessionId ?? null);
+      })
+      .catch(() => {
+        // 读缓存失败不影响页面，按"尚未生成"处理
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sessionDate]);
 
   /**
@@ -301,7 +338,12 @@ export default function Explore() {
   const completed = rows.filter(hasProfile).length;
   const pendingCategories = rows.filter((c) => hasProfile(c) && !categorized(c.aiDirections));
 
-  const words: [string, number][] = (cloud?.groups || []).map((g) => [g.word, g.count]);
+  /**
+   * 只显示**属于当前这一场**的那份词云（docs/10 §3.8）。
+   * 刚切到没有缓存的场次时，上一场的词必须立刻不可见——否则家长看到的是别的场次的孩子。
+   */
+  const cloudShown = cloud && cloudKey === currentSessionId() ? cloud : null;
+  const words: [string, number][] = (cloudShown?.groups || []).map((g) => [g.word, g.count]);
   const maxFrequency = Math.max(1, ...words.map((w) => w[1]));
   const minFrequency = Math.min(maxFrequency, ...words.map((w) => w[1]));
 
@@ -624,7 +666,7 @@ export default function Explore() {
                   disabled={cloudLoading || clearing || deletingId !== null || !rows.length}
                   className="bg-[#1e4b3b] px-6 py-3 text-sm text-white disabled:opacity-40"
                 >
-                  {cloudLoading ? "正在归纳特质…" : cloud ? "重新生成" : "生成"}
+                  {cloudLoading ? "正在归纳特质…" : cloudShown ? "重新生成" : "生成"}
                 </button>
               </div>
               <p className="mt-4 text-sm text-[#607168]">
@@ -641,9 +683,9 @@ export default function Explore() {
                   {cloudError}
                 </p>
               )}
-              {cloud && (
+              {cloudShown && (
                 <p className="mt-3 text-sm text-[#607168]">
-                  基于生成时的 {cloud.total} 位孩子 · {new Date(cloud.generatedAt).toLocaleString("zh-CN")} ·
+                  基于生成时的 {cloudShown.total} 位孩子 · {new Date(cloudShown.generatedAt).toLocaleString("zh-CN")} ·
                   数据变化后请重新生成
                 </p>
               )}
@@ -670,7 +712,7 @@ export default function Explore() {
                   </span>
                 ))}
               </div>
-              {!cloud && !cloudLoading && (
+              {!cloudShown && !cloudLoading && (
                 <p>{rows.length ? "尚未生成词云，请点击右上方“生成”。" : "请先录入孩子信息，再生成词云。"}</p>
               )}
             </section>
