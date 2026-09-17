@@ -77,3 +77,21 @@ export function writeFlag(key: keyof typeof KEYS): void {
     // 同上
   }
 }
+
+/**
+ * 本地存储是否真的可用（§6.16 的「本地存储不可用」一行）。
+ *
+ * 探针与 `store()` 里的同一套；不可用时页面顶部提示一次，
+ * 收藏 / 对比位 / 字号降级为会话内有效 —— 功能不消失，只是刷新后不留。
+ */
+export function storageDegraded(): boolean {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return false;
+    const probe = "__hfi_probe_flag__";
+    window.localStorage.setItem(probe, "1");
+    window.localStorage.removeItem(probe);
+    return false;
+  } catch {
+    return true;
+  }
+}

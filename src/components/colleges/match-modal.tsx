@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-import { MATCH_DISCLAIMER, MATCH_LABEL, MATCH_ORDER, SAT_MAX, SAT_MIN, isValidSat } from "@/lib/colleges-match";
+import { useLang, useT } from "@/components/colleges/colleges-context";
+import {
+  MATCH_ORDER,
+  SAT_MAX,
+  SAT_MIN,
+  isValidSat,
+  matchDisclaimer,
+  matchLabel,
+} from "@/lib/colleges-match";
 
 /**
  * 黑马匹配弹窗（docs/05 H 组 / docs/08 §6.11）。
@@ -10,7 +18,7 @@ import { MATCH_DISCLAIMER, MATCH_LABEL, MATCH_ORDER, SAT_MAX, SAT_MIN, isValidSa
  * 三条边界约束的落点：
  *   - 只出现在 /colleges（本组件只被该页引用）；
  *   - 局限说明**常驻**在这个弹窗里，不折叠；
- *   - 输入的分数只留在本地状态，不落服务端（docs/08 §6.11 第 3 条）。
+ *   - 输入的分数只留在本地状态，不落服务端（§6.11 第 3 条）。
  */
 type Props = {
   current: number | null;
@@ -20,6 +28,8 @@ type Props = {
 };
 
 export function MatchModal({ current, onApply, onClear, onClose }: Props) {
+  const t = useT();
+  const lang = useLang();
   const [raw, setRaw] = useState(current != null ? String(current) : "");
   const [error, setError] = useState("");
 
@@ -34,7 +44,7 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
   const apply = () => {
     const v = Number(raw);
     if (!isValidSat(v)) {
-      setError(`请输入 ${SAT_MIN} 到 ${SAT_MAX} 之间的整数`);
+      setError(t("mt.error", { lo: SAT_MIN, hi: SAT_MAX }));
       return;
     }
     setError("");
@@ -45,7 +55,7 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="SAT 初步区间"
+      aria-label={t("mt.title")}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4 py-[8vh]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -53,11 +63,11 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
     >
       <div className="w-full max-w-[520px] rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#d6d2c7] px-5 py-4">
-          <h2 className="text-lg font-medium text-[#17382f]">SAT 初步区间</h2>
+          <h2 className="text-lg font-medium text-[#17382f]">{t("mt.title")}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="关闭"
+            aria-label={t("mt.close")}
             className="h-8 w-8 rounded-md bg-[#f0e6d8] text-sm text-[#68786e] hover:bg-[#e6e0d5]"
           >
             ✕
@@ -66,12 +76,13 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
 
         <div className="px-5 py-5">
           <p className="text-sm leading-6 text-[#50645b]">
-            输入孩子当前（或目标）的 SAT 成绩，全部 113 所院校会标注初步区间：
-            {MATCH_ORDER.map((t) => MATCH_LABEL[t]).join(" / ")}。
+            {t("mt.intro")}
+            {MATCH_ORDER.map((tag) => matchLabel(tag, lang)).join(" / ")}
+            {t("mt.introEnd")}
           </p>
 
           <label className="mt-4 block text-sm">
-            SAT 成绩（{SAT_MIN}–{SAT_MAX}）
+            {t("mt.field", { lo: SAT_MIN, hi: SAT_MAX })}
             <input
               type="number"
               inputMode="numeric"
@@ -92,9 +103,9 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
             </p>
           )}
 
-          {/* 局限说明：常驻，不折叠 */}
-          <p className="mt-4 rounded-lg bg-[#f5ecdf] px-3 py-2.5 text-[12px] leading-6 text-[#a26047]">
-            ⚠ {MATCH_DISCLAIMER}
+          {/* 局限说明：常驻，不折叠（H8） */}
+          <p className="mt-4 rounded-lg bg-[#f5ecdf] px-3 py-2.5 text-[0.75rem] leading-6 text-[#a26047]">
+            ⚠ {matchDisclaimer(lang)}
           </p>
 
           <div className="mt-5 flex justify-end gap-3">
@@ -104,7 +115,7 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
                 onClick={onClear}
                 className="rounded-lg border border-[#aeb7ad] px-4 py-2.5 text-sm text-[#50645b]"
               >
-                清除匹配
+                {t("mt.clear")}
               </button>
             )}
             <button
@@ -112,7 +123,7 @@ export function MatchModal({ current, onApply, onClear, onClose }: Props) {
               onClick={apply}
               className="rounded-lg bg-[#1e4b3b] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
             >
-              开始匹配
+              {t("mt.apply")}
             </button>
           </div>
         </div>

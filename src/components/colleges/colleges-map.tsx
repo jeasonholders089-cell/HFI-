@@ -1,8 +1,21 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
+import { useLang, useT } from "@/components/colleges/colleges-context";
 import type { College } from "@/lib/colleges-data";
+import { layoutLabels, spreadPoints } from "@/lib/colleges-labels";
+import { nameOf, typeShort } from "@/lib/colleges-l10n";
+import { matchLabel } from "@/lib/colleges-match";
 import {
   HOME_VIEW,
   LABEL_K_SCHOOL,
@@ -21,42 +34,31 @@ import {
   zoomScale,
   type ViewBox,
 } from "@/lib/colleges-project";
+import { readFlag, writeFlag } from "@/lib/colleges-storage";
 import { STATE_PATHS } from "@/lib/us-map-paths";
-import { MATCH_LABEL, type MatchTag } from "@/lib/colleges-match";
+import { CITY_LABELS, GEO_LABELS, STATE_LABELS } from "@/lib/us-map-labels";
 
-/** 州的缩写 → 中文名，用于州名标注。 */
-const STATE_ZH: Record<string, string> = {
-  AL: "阿拉巴马", AK: "阿拉斯加", AZ: "亚利桑那", AR: "阿肯色", CA: "加州",
-  CO: "科罗拉多", CT: "康涅狄格", DE: "特拉华", DC: "华盛顿特区", FL: "佛州",
-  GA: "佐治亚", HI: "夏威夷", ID: "爱达荷", IL: "伊利诺伊", IN: "印第安纳",
-  IA: "爱荷华", KS: "堪萨斯", KY: "肯塔基", LA: "路易斯安那", ME: "缅因",
-  MD: "马里兰", MA: "麻萨诸塞", MI: "密歇根", MN: "明尼苏达", MS: "密西西比",
-  MO: "密苏里", MT: "蒙大拿", NE: "内布拉斯加", NV: "内华达", NH: "新罕布什尔",
-  NJ: "新泽西", NM: "新墨西哥", NY: "纽约州", NC: "北卡", ND: "北达科他",
-  OH: "俄亥俄", OK: "俄克拉荷马", OR: "俄勒冈", PA: "宾州", RI: "罗德岛",
-  SC: "南卡", SD: "南达科他", TN: "田纳西", TX: "德州", UT: "犹他",
-  VT: "佛蒙特", VA: "弗吉尼亚", WA: "华盛顿州", WV: "西弗吉尼亚",
-  WI: "威斯康星", WY: "怀俄明",
+/**
+ * 地图区（docs/08 §6.1–6.5 / §6.18）。
+ *
+ * 值得单独记住的四处：
+ *   1. **拾取用原始坐标，散开只改渲染坐标**（§6.5）—— 否则点到的是假位置；
+ *   2. 悬停**延迟 120ms**、接近右/下缘时翻转，平移过就立即隐藏（A7）；
+ *   3. `hovered` 只存 `en`，坐标留在事件里（§6.18 的性能约定）；
+ *   4. 首次进入的操作提示 3 秒淡出，写 `hfi.colleges.tipsSeen`（A10）。
+ */
+type Props = {
+  colleges: readonly College[];
+  selected: string | null;
+  slots: readonly string[];
+  favs?: ReadonlySet<string>;
+  /** 黑马匹配的档位映射；开启后悬停提示会带档位（H3 的三处同步之一） */
+  matchTags?: ReadonlyMap<string, string | null> | null;
+  onSelect: (en: string) => void;
 };
 
-/** 州名标注的锚点（用路径包围盒中心近似，够用且零成本）。 */
-const STATE_ANCHOR: Record<string, [number, number]> = {};
-for (const s of STATE_PATHS) {
-  const nums = s.d.match(/-?\d+(?:\.\d+)?/g) ?? [];
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (let i = 0; i + 1 < nums.length; i += 2) {
-    const x = Number(nums[i]);
-    const y = Number(nums[i + 1]);
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  }
-  STATE_ANCHOR[s.st] = [(minX + maxX) / 2, (minY + maxY) / 2];
-}
+/** 对外暴露的能力：把某个院校定位到视口中心（表格行点击用，§6.9 E4）。 */
+export type CollegesMapHandle = { focusOn: (en: string) => void };
 
 /** 点色（按类型）。色值只在 globals.css 里定义。 */
 const DOT_FILL: Record<College["typeKey"], string> = {
@@ -65,25 +67,28 @@ const DOT_FILL: Record<College["typeKey"], string> = {
   lac: "var(--dot-lac)",
 };
 
-type Props = {
-  colleges: readonly College[];
-  selected: string | null;
-  slots: readonly string[];
-  /** 黑马匹配的档位映射；开启后地图上的悬停提示会带档位（H3 的三处同步之一） */
-  matchTags?: ReadonlyMap<string, string | null> | null;
-  onSelect: (en: string) => void;
-};
+const HOVER_DELAY_MS = 120;
+const TIP_MS = 3000;
 
-/** 对外暴露的能力：把某个院校定位到视口中心（表格行点击用，docs/08 §6.9 E4）。 */
-export type CollegesMapHandle = { focusOn: (en: string) => void };
+/** 只读的布尔外部存储（提示是否看过 / 是否触屏）。 */
+function subscribeStatic(): () => void {
+  return () => {};
+}
 
 export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function CollegesMap(
-  { colleges, selected, slots, matchTags, onSelect },
+  { colleges, selected, slots, favs, matchTags, onSelect },
   ref,
 ) {
+  const t = useT();
+  const lang = useLang();
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const [vb, setVb] = useState<ViewBox>({ ...HOME_VIEW });
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [tip, setTip] = useState<{ en: string; x: number; y: number } | null>(null);
+  const [dismissedTips, setDismissedTips] = useState(false);
+  /** 容器渲染宽度 —— 散开与拾取阈值都要把屏幕像素换算成视口单位 */
+  const [boxW, setBoxW] = useState(0);
+
   const drag = useRef<{ active: boolean; px: number; py: number; moved: boolean; id: number | null }>({
     active: false,
     px: 0,
@@ -91,9 +96,65 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     moved: false,
     id: null,
   });
+  const pinch = useRef<{ pts: Map<number, { x: number; y: number }>; dist: number }>({
+    pts: new Map(),
+    dist: 0,
+  });
+  const hoverTimer = useRef<number | null>(null);
+
+  const tipsSeen = useSyncExternalStore(
+    subscribeStatic,
+    () => readFlag("tipsSeen"),
+    () => true,
+  );
+  const coarse = useSyncExternalStore(
+    subscribeStatic,
+    () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches,
+    () => false,
+  );
+
+  // 操作提示：3 秒后淡出并写入标记；点击提示本身立即关闭并写入（A10）
+  const closeTips = useCallback(() => {
+    writeFlag("tipsSeen");
+    setDismissedTips(true);
+  }, []);
+
+  useEffect(() => {
+    if (tipsSeen || dismissedTips) return;
+    const id = window.setTimeout(closeTips, TIP_MS);
+    return () => window.clearTimeout(id);
+  }, [tipsSeen, dismissedTips, closeTips]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    };
+  }, []);
 
   const k = zoomScale(vb);
   const slotSet = useMemo(() => new Set(slots), [slots]);
+  const favSet = useMemo(() => favs ?? new Set<string>(), [favs]);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const sync = () => setBoxW(el.getBoundingClientRect().width);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** 渲染坐标：k ≥ 2.5 时散开。**不参与拾取**。 */
+  const renderPts = useMemo(
+    () => spreadPoints(colleges.map((c) => ({ en: c.en, x: c.x, y: c.y })), k, vb.w, boxW),
+    [colleges, k, vb.w, boxW],
+  );
+  const renderXY = useMemo(() => {
+    const m = new Map<string, { x: number; y: number }>();
+    for (const p of renderPts) m.set(p.en, { x: p.x, y: p.y });
+    return m;
+  }, [renderPts]);
 
   useImperativeHandle(
     ref,
@@ -102,19 +163,13 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
       focusOn(en: string) {
         const c = colleges.find((x) => x.en === en);
         if (!c) return;
-        setVb((prev) =>
-          clampView({
-            ...prev,
-            x: c.x - prev.w / 2,
-            y: c.y - prev.h / 2,
-          }),
-        );
+        setVb((prev) => clampView({ ...prev, x: c.x - prev.w / 2, y: c.y - prev.h / 2 }));
       },
     }),
     [colleges],
   );
 
-  /** 只把过滤结果的 x/y 传进拾取 —— 被筛掉的点不能被选中（docs/08 §6.2）。 */
+  /** 只把过滤结果的 x/y 传进拾取 —— 被筛掉的点不能被选中（§6.2）。**用原始坐标**。 */
   const candidates = useMemo(
     () => colleges.map((c) => ({ en: c.en, x: c.x, y: c.y })),
     [colleges],
@@ -124,15 +179,16 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     setVb((prev) => zoomAt(prev, cx, cy, f));
   }, []);
 
-  /** 以视口中心为锚点缩放（缩放按钮用）。 */
+  /** 以视口中心为锚点缩放（缩放按钮用，复用同一套变换，A4）。 */
   const zoomFromCenter = useCallback(
     (f: number) => setVb((prev) => zoomAt(prev, prev.x + prev.w / 2, prev.y + prev.h / 2, f)),
     [],
   );
 
+  /** 复位**只重置视口**，不动浏览位 / 对比位 / 筛选（A4 的验收点）。 */
   const resetView = useCallback(() => setVb({ ...HOME_VIEW }), []);
 
-  // 滚轮缩放：以光标为锚点。passive:false 才能 preventDefault（docs/08 §6.3）
+  // 滚轮缩放：以光标为锚点。passive:false 才能 preventDefault（§6.3）
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -146,17 +202,52 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     return () => svg.removeEventListener("wheel", onWheel);
   }, [vb, applyZoom]);
 
+  const hitAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
+      if (!svg) return null;
+      const rect = svg.getBoundingClientRect();
+      const [px, py] = screenToViewBox(clientX, clientY, rect, vb);
+      return nearestSchool(candidates, px, py, pickThreshold(vb, rect.width));
+    },
+    [candidates, vb],
+  );
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return;
     svg.setPointerCapture(e.pointerId);
-    drag.current = { active: true, px: e.clientX, py: e.clientY, moved: false, id: e.pointerId };
+    pinch.current.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current.pts.size === 1) {
+      drag.current = { active: true, px: e.clientX, py: e.clientY, moved: false, id: e.pointerId };
+    } else {
+      // 第二指落下 → 进入捏合，取消平移
+      drag.current = { active: false, px: 0, py: 0, moved: true, id: null };
+      const [a, b] = [...pinch.current.pts.values()];
+      pinch.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
+    }
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
+
+    if (pinch.current.pts.has(e.pointerId)) pinch.current.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // 双指捏合（§6.3）
+    if (pinch.current.pts.size >= 2) {
+      const [a, b] = [...pinch.current.pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch.current.dist > 0 && d > 0) {
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+        const [cx, cy] = screenToViewBox(midX, midY, rect, vb);
+        applyZoom(cx, cy, d / pinch.current.dist);
+      }
+      pinch.current.dist = d;
+      return;
+    }
 
     if (drag.current.active && drag.current.id === e.pointerId) {
       const dxPx = e.clientX - drag.current.px;
@@ -169,46 +260,105 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
         setVb((prev) => clampView({ ...prev, x: prev.x - dvx, y: prev.y - dvy }));
         drag.current.px = e.clientX;
         drag.current.py = e.clientY;
+        // 本次指针序列发生过平移 → 立即隐藏悬停提示（A7）
+        if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+        setTip(null);
       }
       return;
     }
 
-    // 悬停拾取
-    const [px, py] = screenToViewBox(e.clientX, e.clientY, rect, vb);
-    const hit = nearestSchool(candidates, px, py, pickThreshold(vb, rect.width));
-    setHovered(hit ? hit.en : null);
+    // 悬停拾取：延迟 120ms 显示，避免快速划过时闪
+    const hit = hitAt(e.clientX, e.clientY);
+    const nextEn = hit?.en ?? null;
+    if (tip?.en === nextEn) return;
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    if (!nextEn) {
+      setTip(null);
+      return;
+    }
+    const x = e.clientX;
+    const y = e.clientY;
+    hoverTimer.current = window.setTimeout(() => setTip({ en: nextEn, x, y }), HOVER_DELAY_MS);
   };
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    const moved = drag.current.moved;
+    const moved = drag.current.moved || pinch.current.pts.size >= 2;
+    pinch.current.pts.delete(e.pointerId);
+    if (pinch.current.pts.size < 2) pinch.current.dist = 0;
     drag.current = { active: false, px: 0, py: 0, moved: false, id: null };
     if (moved) return;
 
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const [px, py] = screenToViewBox(e.clientX, e.clientY, rect, vb);
-    const hit = nearestSchool(candidates, px, py, pickThreshold(vb, rect.width));
+    const hit = hitAt(e.clientX, e.clientY);
     if (hit) onSelect(hit.en);
   };
 
-  const hoveredCollege = hovered ? colleges.find((c) => c.en === hovered) ?? null : null;
-  const showSchoolLabels = k >= LABEL_K_SCHOOL && colleges.length <= LABEL_SCHOOL_MAX;
-  const showStateLabels = k >= LABEL_K_STATE;
+  /** 双击放大（§6.3：f = 1.8）。 */
+  const onDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const [cx, cy] = screenToViewBox(e.clientX, e.clientY, rect, vb);
+    applyZoom(cx, cy, 1.8);
+  };
+
+  const hoveredCollege = tip ? colleges.find((c) => c.en === tip.en) ?? null : null;
+  const schoolFs = 11.5 / k;
+  const showSchoolLabels = k >= LABEL_K_SCHOOL && colleges.filter((c) => {
+    return c.x >= vb.x - 10 && c.x <= vb.x + vb.w + 10 && c.y >= vb.y - 10 && c.y <= vb.y + vb.h + 10;
+  }).length <= LABEL_SCHOOL_MAX;
+
+  const schoolLabels = useMemo(() => {
+    if (!showSchoolLabels) return [];
+    return layoutLabels(
+      colleges.map((c) => {
+        const p = renderXY.get(c.en) ?? { x: c.x, y: c.y };
+        return { en: c.en, x: p.x, y: p.y, rank: c.rank, text: nameOf(c, lang) };
+      }),
+      schoolFs,
+      vb,
+      dotRadius(baseRadius(9), k) + 3,
+      4,
+    );
+  }, [showSchoolLabels, colleges, renderXY, schoolFs, vb, k, lang]);
+
+  /** 悬停提示的位置：跟随光标，接近右缘 / 下缘时翻到另一侧（A7）。 */
+  const tipStyle = useMemo(() => {
+    const w = wrapRef.current?.getBoundingClientRect();
+    if (!tip || !w) return null;
+    const x = tip.x - w.left;
+    const y = tip.y - w.top;
+    const flipX = x > w.width - 220;
+    const flipY = y > w.height - 90;
+    return {
+      left: flipX ? undefined : x + 14,
+      right: flipX ? w.width - x + 14 : undefined,
+      top: flipY ? undefined : y + 16,
+      bottom: flipY ? w.height - y + 12 : undefined,
+    };
+  }, [tip]);
+
+  const showTips = !tipsSeen && !dismissedTips;
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: "var(--map-ocean)" }}>
+    <div
+      ref={wrapRef}
+      className="relative h-full w-full overflow-hidden"
+      style={{ background: "var(--map-ocean)" }}
+    >
       <svg
         ref={svgRef}
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         className="h-full w-full touch-none select-none"
         role="img"
-        aria-label="美国院校分布地图"
+        aria-label={t("map.aria")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onDoubleClick={onDoubleClick}
         onPointerLeave={() => {
-          setHovered(null);
+          if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+          setTip(null);
+          pinch.current.pts.clear();
           drag.current = { active: false, px: 0, py: 0, moved: false, id: null };
         }}
       >
@@ -226,57 +376,113 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           ))}
         </g>
 
-        {/* 州名 */}
-        {showStateLabels && (
-          <g aria-hidden>
-            {STATE_PATHS.map((s) => {
-              const a = STATE_ANCHOR[s.st];
-              if (!a) return null;
-              return (
-                <text
-                  key={s.st}
-                  x={a[0]}
-                  y={a[1]}
-                  textAnchor="middle"
-                  fontSize={9 / Math.max(1, k ** 0.55)}
-                  fill="#667d70"
-                  pointerEvents="none"
-                >
-                  {STATE_ZH[s.st] ?? s.st}
+        {/* 海陆标注（5 个，恒显）*/}
+        <g aria-hidden>
+          {GEO_LABELS.map((g) => (
+            <text
+              key={g.en}
+              x={g.x}
+              y={g.y}
+              textAnchor="middle"
+              fontSize={g.f / k ** 0.75}
+              fill={g.land ? "#667d70" : "#9aa59c"}
+              opacity={0.85}
+              pointerEvents="none"
+            >
+              {lang === "en" ? g.en : g.zh}
+            </text>
+          ))}
+        </g>
+
+        {/* 州名标注：缩写恒显；中文名条件是 f ≥ 8 或 k ≥ 1.6；k > 4.5 整体降到 0.35 */}
+        <g aria-hidden opacity={k > 4.5 ? 0.35 : 1}>
+          {STATE_LABELS.map((s) => {
+            const fs = s.f / k ** 0.9;
+            const showZh = lang === "zh" && (s.f >= 8 || k >= LABEL_K_STATE);
+            return (
+              <g key={s.a} pointerEvents="none">
+                <text x={s.x} y={s.y} textAnchor="middle" fontSize={fs} fill="#667d70">
+                  {s.a}
                 </text>
-              );
-            })}
-          </g>
-        )}
+                {showZh && (
+                  <text x={s.x} y={s.y + fs * 1.15} textAnchor="middle" fontSize={fs * 0.92} fill="#667d70">
+                    {s.z}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
+
+        {/* 城市标注（16 个，恒显）：菱形标记 + 名称 */}
+        <g aria-hidden>
+          {CITY_LABELS.map((c) => (
+            <g key={c.en} pointerEvents="none">
+              <rect
+                x={c.x - (5 / k ** 0.82) / 2}
+                y={c.y - (5 / k ** 0.82) / 2}
+                width={5 / k ** 0.82}
+                height={5 / k ** 0.82}
+                fill="#68786e"
+                transform={`rotate(45 ${c.x} ${c.y})`}
+              />
+              <text
+                x={c.x}
+                y={c.y - 7 / k ** 0.82}
+                textAnchor="middle"
+                fontSize={10 / k ** 0.78}
+                fill="#50645b"
+              >
+                {lang === "en" ? c.en : c.zh}
+              </text>
+            </g>
+          ))}
+        </g>
 
         {/* 院校圆点 */}
         <g>
           {colleges.map((c) => {
+            const p = renderXY.get(c.en) ?? { x: c.x, y: c.y };
             const r = dotRadius(baseRadius(c.rank), k);
             const isSel = c.en === selected;
             const inSlot = slotSet.has(c.en);
+            const isFav = favSet.has(c.en);
+            const stroke = (isSel ? 2 : 1.4) / k ** 0.82;
             return (
               <g key={c.en}>
-                {/* 对比位中的院校：外圈环（形状做二次区分，与图例同源） */}
-                {inSlot && (
+                {/* 收藏环（§6.1 D1）：半径 base+3，金棕，线宽 2 */}
+                {isFav && (
                   <circle
-                    cx={c.x}
-                    cy={c.y}
-                    r={r + 3}
+                    cx={p.x}
+                    cy={p.y}
+                    r={Math.max(4.4, (baseRadius(c.rank) + 3) / k ** 0.82)}
                     fill="none"
                     stroke="var(--dot-uni)"
-                    strokeWidth={1.6 / Math.max(1, k ** 0.5)}
+                    strokeWidth={2 / k ** 0.82}
+                    pointerEvents="none"
+                  />
+                )}
+                {/* 对比位中的院校：虚线圈（与金棕实心环区分开） */}
+                {inSlot && (
+                  <circle
+                    cx={p.x}
+                    cy={p.y}
+                    r={r + 6 / k ** 0.82}
+                    fill="none"
+                    stroke="var(--dot-lac)"
+                    strokeWidth={1.4 / k ** 0.82}
+                    strokeDasharray={`${2.5 / k ** 0.82} ${2 / k ** 0.82}`}
                     pointerEvents="none"
                   />
                 )}
                 <circle
-                  cx={c.x}
-                  cy={c.y}
+                  cx={p.x}
+                  cy={p.y}
                   r={isSel ? r + 1 : r}
                   fill={DOT_FILL[c.typeKey]}
                   fillOpacity={0.9}
-                  stroke={isSel || hovered === c.en ? "#211d18" : "#ffffff"}
-                  strokeWidth={(isSel ? 2 : 1.2) / Math.max(1, k ** 0.5)}
+                  stroke={isSel || tip?.en === c.en ? "#211d18" : "#ffffff"}
+                  strokeWidth={stroke}
                   pointerEvents="none"
                 />
               </g>
@@ -284,31 +490,31 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           })}
         </g>
 
-        {/* 院校名（放大到一定程度才显示，且数量受限） */}
-        {showSchoolLabels && (
+        {/* 院校名（k ≥ 2.3 且视口内 ≤ 60 所，带碰撞避让）*/}
+        {schoolLabels.length > 0 && (
           <g aria-hidden>
-            {colleges.map((c) => (
+            {schoolLabels.map((l) => (
               <text
-                key={c.en}
-                x={c.x + dotRadius(baseRadius(c.rank), k) + 2}
-                y={c.y + 3}
-                fontSize={9.5 / Math.max(1, k ** 0.55)}
+                key={l.en}
+                x={l.x}
+                y={l.y}
+                fontSize={l.fs}
                 fill="#211d18"
                 pointerEvents="none"
               >
-                {c.zh}
+                {l.text}
               </text>
             ))}
           </g>
         )}
       </svg>
 
-      {/* 缩放控件（docs/08 6.13 / 6.18 A4） */}
+      {/* 缩放控件（§6.18 A4） */}
       <div className="absolute left-4 top-4 flex flex-col gap-1.5">
         <button
           type="button"
           onClick={() => zoomFromCenter(1.35)}
-          aria-label="放大"
+          aria-label={t("map.zoomIn")}
           className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           ＋
@@ -316,7 +522,7 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
         <button
           type="button"
           onClick={() => zoomFromCenter(1 / 1.35)}
-          aria-label="缩小"
+          aria-label={t("map.zoomOut")}
           className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           －
@@ -324,31 +530,45 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
         <button
           type="button"
           onClick={resetView}
-          aria-label="复位视图"
+          aria-label={t("map.zoomReset")}
           className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-base leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           ⟲
         </button>
       </div>
 
-      {/* 悬停提示（docs/08 5.14 / 6.18 A7） */}
-      {hoveredCollege && (
-        <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-[#d6d2c7] bg-white/95 px-3 py-2 text-xs shadow-sm">
-          <b className="text-[#17382f]">{hoveredCollege.zh}</b>
+      {/* 首次进入的操作提示（A10）：role=note，3 秒淡出 */}
+      {showTips && (
+        <button
+          type="button"
+          role="note"
+          onClick={closeTips}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[#d6d2c7] bg-white/95 px-4 py-2 text-[0.75rem] text-[#50645b] shadow-sm"
+        >
+          {coarse ? t("map.hintTouch") : t("map.hint")}
+        </button>
+      )}
+
+      {/* 悬停提示（A7）：跟随光标，接近边缘时翻转 */}
+      {hoveredCollege && tipStyle && (
+        <div
+          className="pointer-events-none absolute z-20 max-w-[16rem] rounded-lg border border-[#d6d2c7] bg-white/95 px-3 py-2 text-xs shadow-sm"
+          style={tipStyle}
+        >
+          <b className="text-[#17382f]">{nameOf(hoveredCollege, lang)}</b>
           <span className="ml-2 text-[#68786e]">
-            {hoveredCollege.type === "lac" ? "文理" : hoveredCollege.pub === 1 ? "公立" : "私立"} · 第{" "}
-            {hoveredCollege.rank} 名
+            {typeShort(hoveredCollege, lang)} · #{hoveredCollege.rank}
           </span>
           {matchTags?.get(hoveredCollege.en) ? (
-            <span className="ml-2 rounded bg-[#f5ecdf] px-1.5 py-0.5 text-[10px] text-[#8b6f45]">
-              {MATCH_LABEL[matchTags.get(hoveredCollege.en) as MatchTag]}
+            <span className="ml-2 rounded bg-[#f5ecdf] px-1.5 py-0.5 text-[0.625rem] text-[#8b6f45]">
+              {matchLabel(matchTags.get(hoveredCollege.en) as "r", lang)}
             </span>
           ) : null}
         </div>
       )}
 
-      {/* 缩放倍率（调试与验收用，很小不影响观感） */}
-      <div className="pointer-events-none absolute bottom-4 right-4 text-[10px] text-[#9aa59c]">
+      {/* 缩放倍率（验收用，很小不影响观感）*/}
+      <div className="pointer-events-none absolute bottom-4 right-4 text-[0.625rem] text-[#9aa59c]">
         {k.toFixed(1)}× · {MAP_W}×{MAP_H}
       </div>
     </div>

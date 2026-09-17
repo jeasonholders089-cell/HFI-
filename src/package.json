@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --coverage.include=lib/colleges-{project,filter,match,derive,format,i18n}.ts",
+    "verify": "pnpm lint && pnpm test && pnpm build",
     "build:extract": "tsx scripts/extract-colleges.ts",
     "build:map": "tsx scripts/build-us-map.ts",
     "build:colleges": "tsx scripts/build-colleges.ts",

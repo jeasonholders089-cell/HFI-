@@ -8,6 +8,19 @@
  */
 import { firstNumber } from "./colleges-derive";
 import type { College } from "./colleges-data";
+import type { Lang, TextKey } from "./colleges-i18n";
+import {
+  applicantsText,
+  dateTerm,
+  deadlineText,
+  idefName,
+  ivwName,
+  nameOf,
+  pair,
+  testName,
+  termText,
+} from "./colleges-l10n";
+import { t } from "./colleges-i18n";
 
 export type SortKey =
   | "rank" | "school" | "city" | "qs" | "acc" | "er" | "rr" | "tr" | "apps" | "intl"
@@ -20,7 +33,8 @@ const IVW_ORDER: Record<string, number> = { req: 0, rec: 1, opt: 2, inv: 3, none
 
 export type Column = {
   key: SortKey | "tags" | "note" | "detail";
-  label: string;
+  /** 列名的词条 key（§6.15：表头走词条表，不写死中文） */
+  labelKey: TextKey;
   width: number;
   /** 前两列冻结 */
   frozen?: boolean;
@@ -28,70 +42,127 @@ export type Column = {
   /** 排序取值；返回 null 表示缺数据（会排最后） */
   sortValue?: (c: College) => number | string | null;
   /** 单元格渲染文本 */
-  text: (c: College) => string;
+  text: (c: College, lang?: Lang) => string;
 };
 
 const n = (v: number | null) => (v == null ? null : v);
 
+/** 取列名（%6.15 表头双语）。 */
+export function columnLabel(col: Column, lang: Lang): string {
+  return t(lang, col.labelKey);
+}
+
 export const COLUMNS: readonly Column[] = [
   {
-    key: "rank", label: "排名·较去年", width: 96, frozen: true, sortable: true,
+    key: "rank", labelKey: "col.rank", width: 96, frozen: true, sortable: true,
     sortValue: (c) => c.rank,
     text: (c) => `#${c.rank}${c.chg ? ` (${c.chg > 0 ? "+" : ""}${c.chg})` : ""}`,
   },
   {
-    key: "school", label: "学校", width: 190, frozen: true, sortable: true,
-    sortValue: (c) => c.zh,
-    text: (c) => c.zh,
+    key: "school", labelKey: "col.school", width: 190, frozen: true, sortable: true,
+    sortValue: (c) => c.en,
+    text: (c, lang = "zh") => nameOf(c, lang),
   },
   {
-    key: "city", label: "所在城市", width: 150, sortable: true,
+    key: "city", labelKey: "col.city", width: 150, sortable: true,
     sortValue: (c) => `${c.st}${c.city}`,
     text: (c) => `${c.city}, ${c.st}`,
   },
-  { key: "qs", label: "QS世界", width: 68, sortable: true, sortValue: (c) => n(c.qsNum), text: (c) => c.qs ?? "—" },
-  { key: "acc", label: "录取率", width: 70, sortable: true, sortValue: (c) => n(c.accNum), text: (c) => c.acc },
-  { key: "er", label: "早申录取率", width: 104, sortable: true, sortValue: (c) => n(c.erNum), text: (c) => c.er ?? "—" },
-  { key: "rr", label: "RD录取率", width: 104, sortable: true, sortValue: (c) => n(c.rrNum), text: (c) => c.rr ?? "—" },
-  { key: "tr", label: "转学录取率", width: 88, sortable: true, sortValue: (c) => n(c.trNum), text: (c) => c.tr ?? "—" },
-  { key: "apps", label: "申请人数", width: 86, sortable: true, sortValue: (c) => n(c.apps), text: (c) => (c.apps != null ? c.apps.toLocaleString("en-US") : "—") },
-  { key: "intl", label: "国际生比例", width: 74, sortable: true, sortValue: (c) => n(c.intlNum), text: (c) => c.intl },
   {
-    key: "idef", label: "国际生认定", width: 108, sortable: true,
-    sortValue: (c) => (c.idef_c ? IDEF_ORDER[c.idef_c] : null),
-    text: (c) => ({ id: "按国籍", hs: "按高中地", both: "两者兼看" } as const)[c.idef_c ?? "id"] ?? "—",
+    key: "qs", labelKey: "col.qs", width: 68, sortable: true,
+    sortValue: (c) => n(c.qsNum), text: (c, lang = "zh") => c.qs ?? t(lang, "data.dash"),
   },
   {
-    key: "mf", label: "男女比", width: 62, sortable: true,
+    key: "acc", labelKey: "col.acc", width: 70, sortable: true,
+    sortValue: (c) => n(c.accNum), text: (c, lang = "zh") => c.acc ?? t(lang, "data.dash"),
+  },
+  {
+    key: "er", labelKey: "col.er", width: 104, sortable: true,
+    sortValue: (c) => n(c.erNum), text: (c, lang = "zh") => dashT(c.er, lang),
+  },
+  {
+    key: "rr", labelKey: "col.rr", width: 104, sortable: true,
+    sortValue: (c) => n(c.rrNum), text: (c, lang = "zh") => dashT(c.rr, lang),
+  },
+  {
+    key: "tr", labelKey: "col.tr", width: 88, sortable: true,
+    sortValue: (c) => n(c.trNum), text: (c, lang = "zh") => dashT(c.tr, lang),
+  },
+  {
+    key: "apps", labelKey: "col.apps", width: 86, sortable: true,
+    sortValue: (c) => n(c.apps), text: (c, lang = "zh") => applicantsText(c, lang),
+  },
+  {
+    key: "intl", labelKey: "col.intl", width: 74, sortable: true,
+    sortValue: (c) => n(c.intlNum), text: (c, lang = "zh") => c.intl ?? t(lang, "data.dash"),
+  },
+  {
+    key: "idef", labelKey: "col.idef", width: 108, sortable: true,
+    sortValue: (c) => (c.idef_c ? IDEF_ORDER[c.idef_c] : null),
+    text: (c, lang = "zh") => idefName(c.idef_c, lang, true),
+  },
+  {
+    key: "mf", labelKey: "col.mf", width: 62, sortable: true,
     // 排序用「男占比」数字；"女校" 视为有效值但不是数字 → 排最后
     sortValue: (c) => (c.mf === "女校" ? null : firstNumber(c.mf)),
-    text: (c) => (c.mf === "女校" ? "女校" : (c.mf ?? "—")),
+    text: (c, lang = "zh") =>
+      c.mf === "女校" ? t(lang, "data.womenShort") : (c.mf ?? t(lang, "data.dash")),
   },
-  { key: "gpa", label: "平均GPA", width: 96, sortable: true, sortValue: (c) => n(c.gpaNum), text: (c) => c.gpa ?? "—" },
-  { key: "lang", label: "TOEFL / IELTS", width: 150, sortable: true, sortValue: (c) => firstNumber(c.toefl), text: (c) => `${c.toefl} / ${c.ielts}` },
-  { key: "sat", label: "SAT中位50%", width: 102, sortable: true, sortValue: (c) => n(c.satLo), text: (c) => c.sat ?? "—" },
   {
-    key: "test", label: "标化政策", width: 94, sortable: true,
+    key: "gpa", labelKey: "col.gpa", width: 96, sortable: true,
+    sortValue: (c) => n(c.gpaNum), text: (c, lang = "zh") => dashT(c.gpa, lang),
+  },
+  {
+    key: "lang", labelKey: "col.lang", width: 150, sortable: true,
+    sortValue: (c) => firstNumber(c.toefl),
+    text: (c, lang = "zh") => `${dateTerm(c.toefl, lang)} / ${dateTerm(c.ielts, lang)}`,
+  },
+  {
+    key: "sat", labelKey: "col.sat", width: 102, sortable: true,
+    sortValue: (c) => n(c.satLo), text: (c, lang = "zh") => c.sat ?? t(lang, "data.dash"),
+  },
+  {
+    key: "test", labelKey: "col.test", width: 94, sortable: true,
     sortValue: (c) => c.test,
-    text: (c) => ({ req: "必交", opt: "可选", flex: "灵活", blind: "不看" } as const)[c.test],
+    text: (c, lang = "zh") => testName(c.test, lang, true),
   },
   {
-    key: "ivw", label: "面试政策", width: 128, sortable: true,
+    key: "ivw", labelKey: "col.ivw", width: 128, sortable: true,
     sortValue: (c) => (c.ivw_c ? IVW_ORDER[c.ivw_c] : null),
-    text: (c) => ({ req: "必须", rec: "官方推荐", opt: "可选", inv: "仅邀请", none: "无面试", unv: "未核实" } as const)[c.ivw_c ?? "unv"] ?? "—",
+    text: (c, lang = "zh") => ivwName(c.ivw_c, lang, true),
   },
   {
-    key: "rounds", label: "申请批次", width: 128, sortable: true,
+    key: "rounds", labelKey: "col.rounds", width: 128, sortable: true,
     // 按批次**个数**排，不是字典序
     sortValue: (c) => c.roundsArr.length,
     text: (c) => c.roundsArr.join(" / "),
   },
-  { key: "ddl", label: "截止日期", width: 142, sortable: true, sortValue: (c) => n(c.ddlNum), text: (c) => `${c.ea ?? "—"} / ${c.rdd ?? "—"}` },
-  { key: "tuition", label: "学费", width: 118, sortable: true, sortValue: (c) => n(c.tuitionNum), text: (c) => c.tuition ?? "—" },
-  { key: "tags", label: "院校气质", width: 122, sortable: false, text: (c) => c.tz.split("|").join(" / ") },
-  { key: "note", label: "一句话点评", width: 300, sortable: false, text: (c) => c.nz },
-  { key: "detail", label: "详情", width: 58, sortable: false, text: () => "详情" },
+  {
+    key: "ddl", labelKey: "col.ddl", width: 142, sortable: true,
+    sortValue: (c) => n(c.ddlNum), text: (c, lang = "zh") => deadlineText(c, lang, true),
+  },
+  {
+    key: "tuition", labelKey: "col.tuition", width: 118, sortable: true,
+    sortValue: (c) => n(c.tuitionNum), text: (c, lang = "zh") => dashT(c.tuition, lang),
+  },
+  {
+    key: "tags", labelKey: "col.tags", width: 122, sortable: false,
+    text: (c, lang = "zh") => pair(c.tz, c.te, lang).split("|").join(" / "),
+  },
+  {
+    key: "note", labelKey: "col.note", width: 300, sortable: false,
+    text: (c, lang = "zh") => pair(c.nz, c.ne, lang),
+  },
+  {
+    key: "detail", labelKey: "tbl.detail", width: 58, sortable: false,
+    text: (_c, lang = "zh") => t(lang, "tbl.detail"),
+  },
 ];
+
+/** 短数据值：空 → 「—」，非空 → 术语转换后的原文。 */
+function dashT(v: string | null, lang: Lang): string {
+  return v === null || v.trim() === "" ? t(lang, "data.dash") : termText(v, lang);
+}
 
 /** 首次点击就从降序开始的列 ——「越大越好」的那些。 */
 const DESC_FIRST: ReadonlySet<string> = new Set([
@@ -125,26 +196,30 @@ export function nextSort(
 export function sortColleges(
   list: readonly College[],
   sort: { key: string; dir: "asc" | "desc" } | null,
+  lang: Lang = "zh",
 ): College[] {
   const out = [...list];
   const col = sort ? COLUMNS.find((c) => c.key === sort.key && c.sortable) : null;
+  const collator = lang === "en" ? "en" : "zh";
+  const by = (c: College) => (lang === "en" ? c.en : c.zh);
+  const tie = (a: College, b: College) => a.rank - b.rank || by(a).localeCompare(by(b), collator);
 
   out.sort((a, b) => {
     if (!sort || !col?.sortValue) {
-      // 默认：按 rank 升序，同排名按中文名
-      return a.rank - b.rank || a.zh.localeCompare(b.zh, "zh");
+      // 默认：按 rank 升序，同排名按校名（按当前语言）
+      return tie(a, b);
     }
     const va = col.sortValue(a);
     const vb = col.sortValue(b);
-    if (va == null && vb == null) return a.rank - b.rank || a.zh.localeCompare(b.zh, "zh");
+    if (va == null && vb == null) return tie(a, b);
     // 缺数据不参与插入，两个方向都排最后
     if (va == null) return 1;
     if (vb == null) return -1;
 
     let cmp: number;
     if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
-    else cmp = String(va).localeCompare(String(vb), "zh");
-    if (cmp === 0) return a.rank - b.rank || a.zh.localeCompare(b.zh, "zh");
+    else cmp = String(va).localeCompare(String(vb), collator);
+    if (cmp === 0) return tie(a, b);
     return sort.dir === "asc" ? cmp : -cmp;
   });
   return out;

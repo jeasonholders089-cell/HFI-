@@ -44,7 +44,7 @@ AI 写的校名归一化；全量院校坐标表尚未导入。
 | `/entry` | 工作人员单条访谈录入（需访问口令） | 未建 |
 | `/child/[token]` | 孩子成长画像，凭短码回看 | 未建 |
 | `/register/success` | 提交成功：轻画像 + 回看码 | 未建 |
-| `/colleges` | 选校地图 | 未建，规格见 `docs/05`，界面见 `docs/06` |
+| `/colleges` | 选校地图：地图 / 表格两个视图、5 个筛选器、洞察榜、黑马匹配、对比位、收藏与导出、中英切换、字号三档 | 已建 |
 
 接口（全部已建）：`/api/health`、`/api/children`、`/api/children/bulk`、
 `/api/children/analyze`、`/api/children/summary`、`/api/children/wordcloud`、
@@ -79,11 +79,15 @@ app/                     # Next.js App Router
   page.tsx               # 首页（含批量录入、二维码、AI 试用）
   register/page.tsx      # 家长自助填写
   explore/page.tsx       # 现场全景
+  colleges/page.tsx      # 选校地图（状态装配 + 布局 + 语境条 + 空态）
   api/children/...       # 数据接口
   layout.tsx globals.css
+components/
+  site-nav.tsx           # 四个页面共用的导航
+  colleges/              # 选校地图的组件（地图 / 工具栏 / 档案 / 对比 / 表格 / 导出）
 db/schema.ts             # 全部表结构定义（唯一）
 drizzle/                 # 版本化迁移 SQL + meta（不要手改）
-lib/                     # db / inference / 领域逻辑
+lib/                     # db / inference / 领域逻辑 / 选校地图的字段契约与产物
 public/                  # 静态资源
 compose.yaml Dockerfile  # 平台部署配置
 ```
@@ -213,8 +217,8 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 4 �
 
 **进行中**
 
-- 选校地图 `/colleges`：规格（`docs/05` v0.5）、界面（`docs/06` v0.3）、产品评审（`docs/07`）、
-  技术方案（`docs/08` v0.2）与技术方案评审（`docs/09`）均已定稿；**未动代码**
+- 选校地图的现场走查（`docs/09` 第 7.5 节十二条）：室内可自动化的部分已完成，
+  剩下 375px 手机、Slow 3G、大屏与 8 小时长跑需要在真机上人工过一遍
 
 **未开始**
 
@@ -222,6 +226,17 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 4 �
 - `/child/[token]` 孩子成长画像（产品的价值交付页）
 - `/register/success` 提交成功页
 - 院校全量坐标表导入（当前只有手写别名表）
+
+**选校地图已完成的部分（按里程碑）**
+
+- M1 数据管道：`scripts/extract-colleges.ts` / `build-us-map.ts` / `build-colleges.ts`，
+  四道闸校验，`data/colleges.csv`（113 × 46）→ `lib/colleges-data.ts`
+- M2 地图：49 条州界路径、113 个圆点、四类标注、缩放平移（含捏合与双击）、
+  最近点拾取、点位散开、标签避让
+- M3 详情与对比：15 节档案、三格对比位状态机、对比浮窗（23 行 / 8 行高亮）
+- M4 筛选 / 搜索 / 排序 / 洞察榜 / 黑马匹配
+- M5 收藏与导出：星标、只看收藏、健康度提示、A4 横向打印清单
+- M6 收尾：中英切换、字号三档、空态与异常态、移动端抽屉、入口互通、共享导航
 
 ---
 

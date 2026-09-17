@@ -52,3 +52,30 @@
 }
 @theme inline{--color-background:var(--background);--color-foreground:var(--foreground);--font-sans:var(--font-geist-sans);--font-mono:var(--font-geist-mono)}
 *{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--background);color:var(--foreground);font-family:Arial,"PingFang SC","Microsoft YaHei",sans-serif} a{text-decoration:none;color:inherit}
+
+/* 选校地图的两栏比例（docs/08 §5.5）：单一定义，组件不写具体比例。
+   小于 1024px 切上下布局，详情栏变底部抽屉（见 colleges/page.tsx）。 */
+:root{--colleges-map-ratio:62%}
+.colleges-split{display:grid;gap:1.25rem}
+@media (min-width:1024px){.colleges-split{grid-template-columns:var(--colleges-map-ratio) 1fr}}
+
+/* 字号三档（docs/08 §6.14）：改根字号，rem 单位的文案与间距整体缩放。
+   地图里的标注是 SVG viewBox 下的绝对字号，不受影响（documents 里的预期行为）。 */
+html[data-font="lg"]{font-size:112.5%}
+html[data-font="xl"]{font-size:125%}
+
+/* 减弱动效（docs/08 §6.18 G3）：回到顶部改为瞬间跳转 */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .scroll-smooth-safe{scroll-behavior:auto}
+}
+
+/* 导出清单的打印视图（docs/08 §6.13 D4）：A4 横向一页，
+   只打印 .print-area 里的内容，其余全部隐藏。 */
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  body *{visibility:hidden}
+  .print-area,.print-area *{visibility:visible}
+  .print-area{position:absolute;left:0;top:0;width:100%;max-height:none;overflow:visible}
+  .no-print{display:none!important}
+}

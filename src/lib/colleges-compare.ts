@@ -4,151 +4,208 @@
  * 行序照参考实现 `cmpRows` 原样（docs/08 §6.12）。
  * **只有 8 行参与最优值高亮** —— SAT 与 GPA 不参与（C2 的更正）。
  */
-import { formatField, formatGenderRatio, isExtrapolated } from "./colleges-format";
 import type { College } from "./colleges-data";
+import type { FieldKind } from "./colleges-format";
+import type { Lang } from "./colleges-i18n";
+import {
+  applicantsText,
+  dateTerm,
+  formatFieldL,
+  genderName,
+  idefName,
+  leverText,
+  pair,
+  rankListName,
+  roundsText,
+  testName,
+  typeName,
+  ivwName,
+} from "./colleges-l10n";
 
 export type CompareRow = {
   key: string;
+  /** 中文行名（zh 模式用它） */
   label: string;
+  /** 英文行名（en 模式用它） */
+  labelEn: string;
   /** 高亮方向；不参与高亮则不填 */
   mode?: "max" | "min";
   /** 取数值用于比较高亮；返回 null 表示这一格缺失 */
   num?: (c: College) => number | null;
   /** 渲染文本 */
-  text: (c: College) => string;
+  text: (c: College, lang?: Lang) => string;
 };
 
-const dash = (v: string | null, kind: Parameters<typeof formatField>[1] = "text") =>
-  formatField(v, kind);
+const dash = (v: string | null, kind: FieldKind = "text", lang: Lang = "zh") =>
+  formatFieldL(v, kind, lang);
 
 export const COMPARE_ROWS: readonly CompareRow[] = [
   {
     key: "name",
     label: "学校",
+    labelEn: "School",
     // 参考实现把校名当成第一行数据（不是表头）。我们两边都保留：
     // 表头放校名 + ✕（便于移除），这一行照原样保留，行序与 cmpRows 一致。
-    text: (c) => `${c.zh}\n${c.en}`,
+    text: (c, lang = "zh") => (lang === "en" ? `${c.en}\n${c.zh}` : `${c.zh}\n${c.en}`),
   },
   {
     key: "usn",
     label: "US News 2026",
-    text: (c) =>
-      `#${c.rank} · ${c.type === "uni" ? "综合大学榜" : "文理学院榜"}` +
-      (c.chg ? `（较去年 ${c.chg > 0 ? "+" : ""}${c.chg}）` : ""),
+    labelEn: "US News 2026",
+    text: (c, lang = "zh") =>
+      `#${c.rank} · ${rankListName(c, lang)}` +
+      (c.chg
+        ? lang === "en"
+          ? ` (${c.chg > 0 ? "+" : ""}${c.chg} YoY)`
+          : `（较去年 ${c.chg > 0 ? "+" : ""}${c.chg}）`
+        : ""),
   },
-  { key: "qs", label: "QS 世界 2026", text: (c) => (c.qs ? `#${c.qs}` : "未上榜") },
+  {
+    key: "qs",
+    label: "QS 世界 2026",
+    labelEn: "QS World 2026",
+    text: (c, lang = "zh") => (c.qs ? `#${c.qs}` : dash(null, "rank", lang)),
+  },
   {
     key: "city",
     label: "城市 / 州",
-    text: (c) => `${c.city}, ${c.st}\n${c.cz}`,
+    labelEn: "City / State",
+    text: (c, lang = "zh") => `${c.city}, ${c.st}\n${pair(c.cz, c.ce, lang)}`,
   },
   {
     key: "type",
     label: "类型",
-    text: (c) =>
-      c.type === "lac" ? "文理学院" : c.pub === 1 ? "公立综合性大学" : "私立综合性大学",
+    labelEn: "Type",
+    text: (c, lang = "zh") => typeName(c, lang),
   },
   {
     key: "acc",
     label: "整体录取率",
+    labelEn: "Overall acceptance",
     mode: "max",
     num: (c) => c.accNum,
-    text: (c) => dash(c.acc, "percent"),
+    text: (c, lang = "zh") => dash(c.acc, "percent", lang),
   },
   {
     key: "er",
     label: "早申录取率",
+    labelEn: "Early acceptance",
     mode: "max",
     num: (c) => c.erNum,
-    text: (c) => dash(c.er, "percent"),
+    text: (c, lang = "zh") => dash(c.er, "percent", lang),
   },
   {
     key: "rr",
     label: "RD 录取率",
+    labelEn: "RD acceptance",
     mode: "max",
     num: (c) => c.rrNum,
     // 推算值必须常驻标注（docs/05 4.6）
-    text: (c) => (c.rr ? `${c.rr}${isExtrapolated(c.rr) ? "" : ""}` : "未公布"),
+    text: (c, lang = "zh") => dash(c.rr, "percent", lang),
   },
   {
     key: "lever",
     label: "早申杠杆",
+    labelEn: "Early leverage",
     mode: "max",
     num: (c) => c.lever,
-    text: (c) => (c.lever != null ? `${c.lever.toFixed(1)}×` : "—"),
+    text: (c, lang = "zh") => leverText(c, lang),
   },
   {
     key: "tr",
     label: "转学录取率",
+    labelEn: "Transfer acceptance",
     mode: "max",
     num: (c) => c.trNum,
-    text: (c) => dash(c.tr, "percent"),
+    text: (c, lang = "zh") => dash(c.tr, "percent", lang),
   },
   {
     key: "apps",
     label: "申请人数",
+    labelEn: "Applicants",
     mode: "min",
     num: (c) => c.apps,
-    text: (c) => (c.apps != null ? `${c.apps.toLocaleString("en-US")} 人` : "未公布"),
+    text: (c, lang = "zh") => applicantsText(c, lang),
   },
   {
     key: "sat",
     label: "SAT 中位 50%",
+    labelEn: "SAT mid 50%",
     // SAT 不参与高亮（C2）
-    text: (c) => dash(c.sat),
+    text: (c, lang = "zh") => dash(c.sat, "text", lang),
   },
-  { key: "gpa", label: "平均 GPA", text: (c) => dash(c.gpa) },
+  {
+    key: "gpa",
+    label: "平均 GPA",
+    labelEn: "Average GPA",
+    text: (c, lang = "zh") => dash(c.gpa, "text", lang),
+  },
   {
     key: "test",
     label: "标化政策",
-    text: (c) =>
-      ({ req: "标化必交", opt: "标化可选", flex: "标化灵活", blind: "不看标化" })[c.test],
+    labelEn: "Testing policy",
+    text: (c, lang = "zh") => testName(c.test, lang),
   },
-  { key: "rounds", label: "申请批次", text: (c) => c.roundsArr.join(" / ") },
+  { key: "rounds", label: "申请批次", labelEn: "Rounds", text: (c) => roundsText(c) },
   {
     key: "ddl",
     label: "截止（早申 / RD）",
-    text: (c) => `${c.ea ?? (c.singleRound ? "无早申" : "—")}\nRD ${c.rdd ?? "—"}`,
+    labelEn: "Deadlines (early / RD)",
+    text: (c, lang = "zh") => {
+      const early = dateTerm(
+        c.ea ?? (c.singleRound ? (lang === "en" ? "No early round" : "无早申") : null),
+        lang,
+      );
+      return `${early}\nRD ${dateTerm(c.rdd, lang)}`;
+    },
   },
   {
     key: "tuition",
     label: "学费",
+    labelEn: "Tuition",
     mode: "min",
     num: (c) => c.tuitionNum,
-    text: (c) => dash(c.tuition),
+    text: (c, lang = "zh") => dash(c.tuition, "text", lang),
   },
   {
     key: "intl",
     label: "国际生比例",
+    labelEn: "International share",
     mode: "max",
     num: (c) => c.intlNum,
-    text: (c) => dash(c.intl, "percent"),
+    text: (c, lang = "zh") => dash(c.intl, "percent", lang),
   },
   {
     key: "idef",
     label: "国际生认定",
-    text: (c) =>
-      ({ id: "按国籍/永居", hs: "按高中所在地", both: "国籍 + 高中地" } as const)[
-        c.idef_c ?? "id"
-      ] ?? "—",
+    labelEn: "International defined by",
+    text: (c, lang = "zh") => idefName(c.idef_c, lang, true),
   },
   {
     key: "ivw",
     label: "面试政策",
-    text: (c) =>
-      ({
-        req: "必须面试",
-        rec: "官方推荐",
-        opt: "可选",
-        inv: "仅邀请",
-        none: "无面试",
-        unv: "未核实",
-      } as const)[c.ivw_c ?? "unv"] ?? "—",
+    labelEn: "Interview policy",
+    text: (c, lang = "zh") => ivwName(c.ivw_c, lang),
   },
-  { key: "mf", label: "男女比", text: (c) => formatGenderRatio(c.mf) },
-  { key: "tags", label: "院校气质", text: (c) => c.tz.split("|").join(" / ") },
-  { key: "note", label: "一句话点评", text: (c) => c.nz },
+  { key: "mf", label: "男女比", labelEn: "M:F", text: (c, lang = "zh") => genderName(c.mf, lang) },
+  {
+    key: "tags",
+    label: "院校气质",
+    labelEn: "Character",
+    text: (c, lang = "zh") => pair(c.tz, c.te, lang).split("|").join(" / "),
+  },
+  {
+    key: "note",
+    label: "一句话点评",
+    labelEn: "One-line note",
+    text: (c, lang = "zh") => pair(c.nz, c.ne, lang),
+  },
 ];
+
+/** 按语言取行名。 */
+export function rowLabel(row: CompareRow, lang: Lang): string {
+  return lang === "en" ? row.labelEn : row.label;
+}
 
 /**
  * 找出这一行该高亮的列下标；不高亮返回 -1。

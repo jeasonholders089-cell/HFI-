@@ -17,7 +17,7 @@
 | 工作人员单条访谈录入 | `/entry` | 未开发 |
 | 孩子成长画像 | `/child/[token]` | 未开发 |
 | 提交成功页 | `/register/success` | 未开发 |
-| 选校地图 | `/colleges` | 未开发，规格已定稿 |
+| 选校地图 | `/colleges` | 可用（地图 / 表格、筛选、对比、收藏导出、中英切换） |
 
 活动当天现场还有一个用法：首页的**批量录入**支持 Excel 和文本两种方式，
 工作人员可以先把访谈记录整理好一次性导入，再在 `/explore` 里逐条跑 AI 分析。
@@ -115,11 +115,28 @@ app/                页面与接口（App Router）
   page.tsx          首页
   register/         家长自助填写
   explore/          现场全景
+  colleges/         选校地图（113 所院校，零外部依赖，整页不发网络请求）
   api/children/     数据接口
+components/
+  site-nav.tsx      四个页面共用的导航
+  colleges/         选校地图的组件
 db/schema.ts        全部表结构（唯一来源）
 drizzle/            版本化迁移 SQL（不要手改）
-lib/                db / inference / 领域逻辑
+lib/                db / inference / 领域逻辑 / 选校地图的字段契约与构建产物
 ```
+
+### 选校地图的数据是构建期产物
+
+`/colleges` 不查数据库、不发网络请求：113 所院校的坐标、口径与底图路径都在
+构建期编译进前端 bundle。改数据要重跑构建，不能用改代码的方式绕过：
+
+```bash
+pnpm build:data        # data/colleges.csv → lib/colleges-data.ts；同时重建州界路径
+pnpm verify            # lint + test + build（里程碑收尾跑这个）
+```
+
+> 四道闸会在列名、枚举、条目数不对时**以退出码 1 失败**，并且不覆盖旧产物。
+> 卡住的常见原因是 `data/colleges.csv` 的表头与 `lib/colleges-schema.ts` 不一致。
 
 ---
 
@@ -142,3 +159,5 @@ lib/                db / inference / 领域逻辑
 - 项目规范与边界：[AGENTS.md](AGENTS.md)
 - 选校地图规格：[docs/05-选校地图模块.md](docs/05-选校地图模块.md)
 - 选校地图界面：[docs/06-选校地图-界面草图.md](docs/06-选校地图-界面草图.md)
+- 选校地图技术实施方案：[docs/08-选校地图-技术实施方案.md](docs/08-选校地图-技术实施方案.md)
+- 联调与验收记录：[docs/09-选校地图-联调与验收记录.md](docs/09-选校地图-联调与验收记录.md)

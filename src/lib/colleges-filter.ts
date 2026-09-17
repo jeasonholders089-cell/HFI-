@@ -136,3 +136,23 @@ export function hasActiveFilters(state: FilterState): boolean {
   const { filters: f, insight, favOnly } = state;
   return favOnly || insight !== null || Object.values(f).some((v) => v !== "");
 }
+
+/**
+ * 空态判定（docs/08 §6.16）—— 三种空态**文案不同**，不能合并成一句。
+ *
+ * 优先级：只看收藏但收藏为空 > 搜索无结果 > 筛选后无结果。
+ * 「搜索无结果」要引导下一步（docs/05 4.3），不能只给干巴巴的「无结果」。
+ */
+export type EmptyKind = "favs" | "search" | "filtered";
+
+export function emptyKindFor(state: {
+  resultCount: number;
+  favOnly: boolean;
+  favCount: number;
+  q: string;
+}): EmptyKind | null {
+  if (state.resultCount > 0) return null;
+  if (state.favOnly && state.favCount === 0) return "favs";
+  if (state.q.trim() !== "") return "search";
+  return "filtered";
+}

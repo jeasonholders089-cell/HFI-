@@ -78,7 +78,7 @@ describe("排序三细节", () => {
 
   it("国际生认定按枚举序 hs(0) → both(1) → id(2)", () => {
     const out = sortColleges(COLLEGES, { key: "idef", dir: "asc" });
-    const seq = out.map((c) => c.idef_c).filter((v): v is string => v != null);
+    const seq = out.map((c) => c.idef_c).filter((v): v is "hs" | "both" | "id" => v != null);
     const rank: Record<string, number> = { hs: 0, both: 1, id: 2 };
     for (let i = 1; i < seq.length; i++) {
       expect(rank[seq[i]]).toBeGreaterThanOrEqual(rank[seq[i - 1]]);

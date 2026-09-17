@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useLang, useT } from "@/components/colleges/colleges-context";
 import type { College } from "@/lib/colleges-data";
-import { COLUMNS, nextSort, sortColleges } from "@/lib/colleges-table";
+import { nameOf } from "@/lib/colleges-l10n";
+import { COLUMNS, columnLabel, nextSort, sortColleges } from "@/lib/colleges-table";
 
 /**
  * 表格视图（docs/08 §6.8 / §6.9）。
@@ -21,12 +23,14 @@ type Props = {
 };
 
 export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRowClick }: Props) {
+  const t = useT();
+  const lang = useLang();
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const drag = useRef({ active: false, startX: 0, startLeft: 0, moved: false, id: null as number | null });
   const [sc, setSc] = useState({ left: 0, total: 0, view: 0 });
 
-  const rows = useMemo(() => sortColleges(colleges, sort), [colleges, sort]);
+  const rows = useMemo(() => sortColleges(colleges, sort, lang), [colleges, sort, lang]);
   const frozenW1 = COLUMNS[0].width;
 
   const sync = useCallback(() => {
@@ -51,8 +55,8 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
 
   return (
     <div className="rounded-xl border border-[#d6d2c7] bg-white">
-      <div className="px-4 py-3 text-[11px] text-[#68786e]">
-        拖动滑块横向滚动 · 或点两侧箭头整屏平移 · 前两列冻结 · 点表头排序 · 点行回到地图
+      <div className="px-4 py-3 text-[0.6875rem] text-[#68786e]">
+        {t("tbl.hint")}
       </div>
 
       <div className="relative mx-4 mb-3 h-3 rounded-full bg-[#e6e0d5]">
@@ -92,7 +96,7 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
       <div className="relative">
         <button
           type="button"
-          aria-label="向左平移"
+          aria-label={t("tbl.shiftLeft")}
           disabled={!canLeft}
           onClick={() => {
             const el = scrollRef.current;
@@ -104,7 +108,7 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
         </button>
         <button
           type="button"
-          aria-label="向右平移"
+          aria-label={t("tbl.shiftRight")}
           disabled={!canRight}
           onClick={() => {
             const el = scrollRef.current;
@@ -144,7 +148,7 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
           className="overflow-x-auto"
           style={{ touchAction: "pan-x" }}
         >
-          <table className="border-collapse text-left text-[12px]">
+          <table className="border-collapse text-left text-[0.75rem]">
             <thead>
               <tr>
                 {COLUMNS.map((col, i) => {
@@ -170,13 +174,13 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
                           onClick={() => setSort((cur) => nextSort(cur, col.key))}
                           className="inline-flex items-center gap-1 hover:text-[#8b6f45]"
                         >
-                          {col.label}
-                          <span className="text-[10px] text-[#9aa59c]">
+                          {columnLabel(col, lang)}
+                          <span className="text-[0.625rem] text-[#9aa59c]">
                             {isSorted ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
                           </span>
                         </button>
                       ) : (
-                        col.label
+                        columnLabel(col, lang)
                       )}
                     </th>
                   );
@@ -217,7 +221,11 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
                             <span className="inline-flex items-center gap-2">
                               <button
                                 type="button"
-                                aria-label={isFav ? `取消收藏 ${c.zh}` : `收藏 ${c.zh}`}
+                                aria-label={
+                                  isFav
+                                    ? t("fav.remove") + " " + nameOf(c, lang)
+                                    : t("fav.add") + " " + nameOf(c, lang)
+                                }
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onToggleFav(c.en);
@@ -234,11 +242,11 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
                                 }}
                                 className="text-[#8b6f45] hover:underline"
                               >
-                                详情
+                                {t("tbl.detail")}
                               </button>
                             </span>
                           ) : (
-                            col.text(c)
+                            col.text(c, lang)
                           )}
                         </td>
                       );
@@ -251,8 +259,8 @@ export function CollegesTable({ colleges, favs, onToggleFav, onOpenDetail, onRow
         </div>
       </div>
 
-      <div className="border-t border-[#e6e0d5] px-4 py-2 text-[11px] text-[#68786e]">
-        共 {rows.length} 行 · 前两列冻结
+      <div className="border-t border-[#e6e0d5] px-4 py-2 text-[0.6875rem] text-[#68786e]">
+        {t("tbl.rows", { n: rows.length })}
       </div>
     </div>
   );

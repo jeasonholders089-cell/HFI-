@@ -1,17 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 
+import { useLang, useT } from "@/components/colleges/colleges-context";
 import type { College } from "@/lib/colleges-data";
 import {
-  EMPTY_FILTERS,
   INSIGHT_DEFS,
   ROUND_OPTIONS,
   searchSuggestions,
   type Filters,
   type InsightKey,
 } from "@/lib/colleges-filter";
-import { MATCH_DISCLAIMER, MATCH_LABEL, MATCH_ORDER } from "@/lib/colleges-match";
+import type { TextKey } from "@/lib/colleges-i18n";
+import { nameOf, subNameOf } from "@/lib/colleges-l10n";
+import { MATCH_ORDER, matchDisclaimer } from "@/lib/colleges-match";
 
 /** 工具栏五行（docs/06 第三节）。图例从地图左下角搬到这里（docs/05 3.2）。 */
 type Props = {
@@ -30,32 +32,51 @@ type Props = {
   onToggleFavOnly: () => void;
   onReset: () => void;
   onOpenMatch: () => void;
+  /** 导出收藏清单（D4）。收藏为空时不渲染这个按钮 */
+  onExport: () => void;
+  /** 收藏健康度提示（D3），由页面按 favs + userSat 算好 */
+  hints: readonly { key: string; textKey: TextKey }[];
   onBrowse: (en: string) => void;
   active: boolean;
 };
 
-const REGIONS = [
-  { value: "", label: "全部地区" },
-  { value: "NE", label: "东北部" },
-  { value: "S", label: "南部" },
-  { value: "MW", label: "中西部" },
-  { value: "W", label: "西部" },
+const REGIONS: { value: string; label: TextKey }[] = [
+  { value: "", label: "toolbar.regionAll" },
+  { value: "NE", label: "toolbar.regionNE" },
+  { value: "S", label: "toolbar.regionS" },
+  { value: "MW", label: "toolbar.regionMW" },
+  { value: "W", label: "toolbar.regionW" },
 ];
-const TESTS = [
-  { value: "", label: "全部标化政策" },
-  { value: "req", label: "标化必交" },
-  { value: "opt", label: "标化可选" },
-  { value: "flex", label: "标化灵活" },
-  { value: "blind", label: "不看标化" },
+const TESTS: { value: string; label: TextKey }[] = [
+  { value: "", label: "toolbar.testAll" },
+  { value: "req", label: "toolbar.testReq" },
+  { value: "opt", label: "toolbar.testOpt" },
+  { value: "flex", label: "toolbar.testFlex" },
+  { value: "blind", label: "toolbar.testBlind" },
 ];
-const RANKS = [
-  { value: "", label: "全部排名" },
-  { value: "30", label: "Top 30" },
-  { value: "50", label: "Top 50" },
+const RANKS: { value: string; label: TextKey }[] = [
+  { value: "", label: "toolbar.rankAll" },
+  { value: "30", label: "Top 30" as TextKey },
+  { value: "50", label: "Top 50" as TextKey },
 ];
+/** 洞察榜的文案 key（lib 里只放判定，文案在这里）。 */
+const INSIGHT_LABEL: Record<InsightKey, TextKey> = {
+  ed: "insight.ed",
+  intl: "insight.intl",
+  tr: "insight.tr",
+  calm: "insight.calm",
+  blind: "insight.blind",
+};
+const BAND_LABEL: Record<string, TextKey> = {
+  r: "band.r",
+  rm: "band.rm",
+  m: "band.m",
+  s: "band.s",
+  h: "band.h",
+};
 
 const select =
-  "rounded-lg border border-[#d6d2c7] bg-white px-2.5 py-2 text-[13px] text-[#17382f] outline-none focus:border-[#8b6f45]";
+  "rounded-lg border border-[#d6d2c7] bg-white px-2.5 py-2 text-[0.8125rem] text-[#17382f] outline-none focus:border-[#8b6f45]";
 
 export function CollegesToolbar({
   view,
@@ -73,9 +94,13 @@ export function CollegesToolbar({
   onToggleFavOnly,
   onReset,
   onOpenMatch,
+  onExport,
+  hints,
   onBrowse,
   active,
 }: Props) {
+  const t = useT();
+  const lang = useLang();
   const [focusSuggest, setFocusSuggest] = useState(false);
   const suggestions = useMemo(
     () => (focusSuggest ? searchSuggestions(all, filters.q) : []),
@@ -84,7 +109,6 @@ export function CollegesToolbar({
 
   return (
     <div className="mb-5 space-y-3 rounded-xl border border-[#d6d2c7] bg-[#f8f5ed] p-4">
-      {/* 第 1 行：视图切换（表格视图在 M5 接入，这里先置灰占位）+ 搜索 */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-[#d6d2c7] bg-white">
           {(["map", "table"] as const).map((v) => (
@@ -93,11 +117,11 @@ export function CollegesToolbar({
               type="button"
               onClick={() => onView(v)}
               aria-pressed={view === v}
-              className={`px-4 py-2 text-[13px] ${
+              className={`px-4 py-2 text-[0.8125rem] ${
                 view === v ? "bg-[#8b6f45] font-medium text-white" : "text-[#50645b]"
               }`}
             >
-              {v === "map" ? "地图视图" : "表格视图"}
+              {v === "map" ? t("toolbar.map") : t("toolbar.table")}
             </button>
           ))}
         </div>
@@ -109,9 +133,9 @@ export function CollegesToolbar({
             onChange={(e) => onFilters({ q: e.target.value })}
             onFocus={() => setFocusSuggest(true)}
             onBlur={() => setTimeout(() => setFocusSuggest(false), 120)}
-            placeholder="搜索学校（中 / 英文）…"
-            aria-label="搜索学校"
-            className="w-[16rem] rounded-lg border border-[#d6d2c7] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#8b6f45]"
+            placeholder={t("toolbar.search")}
+            aria-label={t("toolbar.search")}
+            className="w-[16rem] rounded-lg border border-[#d6d2c7] bg-white px-3 py-2 text-[0.8125rem] outline-none focus:border-[#8b6f45]"
           />
           {suggestions.length > 0 && (
             <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-[#d6d2c7] bg-white shadow-lg">
@@ -124,10 +148,10 @@ export function CollegesToolbar({
                       onBrowse(c.en);
                       setFocusSuggest(false);
                     }}
-                    className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-[13px] hover:bg-[#f5ecdf]"
+                    className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-[0.8125rem] hover:bg-[#f5ecdf]"
                   >
-                    <span>{c.zh}</span>
-                    <span className="text-[11px] text-[#9aa59c]">{c.en}</span>
+                    <span>{nameOf(c, lang)}</span>
+                    <span className="text-[0.6875rem] text-[#9aa59c]">{subNameOf(c, lang)}</span>
                   </button>
                 </li>
               ))}
@@ -136,102 +160,114 @@ export function CollegesToolbar({
         </div>
       </div>
 
-      {/* 第 2 行：五个筛选器 + 图例 */}
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label="类型" value={filters.type} onChange={(e) => onFilters({ type: e.target.value })} className={select}>
-          <option value="">全部类型</option>
-          <option value="uni">综合性大学</option>
-          <option value="lac">文理学院</option>
+        <select aria-label={t("toolbar.typeAll")} value={filters.type} onChange={(e) => onFilters({ type: e.target.value })} className={select}>
+          <option value="">{t("toolbar.typeAll")}</option>
+          <option value="uni">{t("toolbar.typeUni")}</option>
+          <option value="lac">{t("toolbar.typeLac")}</option>
         </select>
-        <select aria-label="地区" value={filters.region} onChange={(e) => onFilters({ region: e.target.value })} className={select}>
+        <select aria-label={t("toolbar.regionAll")} value={filters.region} onChange={(e) => onFilters({ region: e.target.value })} className={select}>
           {REGIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {o.label.startsWith("toolbar.") ? t(o.label) : o.label}
             </option>
           ))}
         </select>
-        <select aria-label="批次" value={filters.round} onChange={(e) => onFilters({ round: e.target.value })} className={select}>
-          <option value="">全部批次</option>
+        <select aria-label={t("toolbar.roundAll")} value={filters.round} onChange={(e) => onFilters({ round: e.target.value })} className={select}>
+          <option value="">{t("toolbar.roundAll")}</option>
           {ROUND_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(`toolbar.round${o.value}` as TextKey)}
             </option>
           ))}
         </select>
-        <select aria-label="标化政策" value={filters.test} onChange={(e) => onFilters({ test: e.target.value })} className={select}>
+        <select aria-label={t("toolbar.testAll")} value={filters.test} onChange={(e) => onFilters({ test: e.target.value })} className={select}>
           {TESTS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.label)}
             </option>
           ))}
         </select>
-        <select aria-label="排名" value={filters.rank} onChange={(e) => onFilters({ rank: e.target.value })} className={select}>
+        <select aria-label={t("toolbar.rankAll")} value={filters.rank} onChange={(e) => onFilters({ rank: e.target.value })} className={select}>
           {RANKS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {o.label.startsWith("toolbar.") ? t(o.label) : o.label}
             </option>
           ))}
         </select>
 
-        {/* 图例（A9）——色点形状与地图一致：实心 / 空心 / 菱形 */}
-        <div className="ml-auto flex flex-wrap items-center gap-3 text-[11px] text-[#68786e]">
+        {/* 图例（A9）——形状与地图一致：实心 / 空心 / 菱形 */}
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-[0.6875rem] text-[#68786e]">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--dot-uni)" }} />
-            私立综合
+            {t("toolbar.legendUni")}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: "var(--dot-pub)", background: "white" }} />
-            公立综合
+            {t("toolbar.legendPub")}
           </span>
           <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2.5 w-2.5"
-              style={{ background: "var(--dot-lac)", transform: "rotate(45deg)" }}
-            />
-            文理学院
+            <span className="inline-block h-2.5 w-2.5" style={{ background: "var(--dot-lac)", transform: "rotate(45deg)" }} />
+            {t("toolbar.legendLac")}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rotate-45 bg-[#68786e]" />
-            主要城市
+            {t("toolbar.legendCity")}
           </span>
         </div>
       </div>
 
-      {/* 第 3 行：操作按钮 */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onToggleFavOnly}
           aria-pressed={favOnly}
-          className={`rounded-lg border px-3 py-1.5 text-[12px] ${
+          className={`rounded-lg border px-3 py-1.5 text-[0.75rem] ${
             favOnly ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#d6d2c7] bg-white text-[#50645b]"
           }`}
         >
-          我的收藏{favCount ? `（${favCount}）` : ""}
+          {t("toolbar.favBtn", { fav: favCount ? `（${favCount}）` : "" })}
         </button>
+        {favCount > 0 && (
+          <button
+            type="button"
+            onClick={onExport}
+            className="rounded-lg border border-[#8b6f45] bg-white px-3 py-1.5 text-[0.75rem] text-[#8b6f45]"
+          >
+            {t("exp.button")}
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenMatch}
-          className={`rounded-lg border px-3 py-1.5 text-[12px] ${
+          className={`rounded-lg border px-3 py-1.5 text-[0.75rem] ${
             userSat != null ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#d6d2c7] bg-white text-[#50645b]"
           }`}
         >
-          {userSat != null ? `SAT ${userSat} 匹配中` : "SAT 初步区间"}
+          {userSat != null ? t("toolbar.matchOn", { sat: userSat }) : t("toolbar.matchBtn")}
         </button>
         {active && (
           <button
             type="button"
             onClick={onReset}
-            className="rounded-lg border border-[#a26047] bg-white px-3 py-1.5 text-[12px] text-[#a26047]"
+            className="rounded-lg border border-[#a26047] bg-white px-3 py-1.5 text-[0.75rem] text-[#a26047]"
           >
-            清除筛选
+            {t("toolbar.reset")}
           </button>
         )}
       </div>
 
-      {/* 第 4 行：洞察榜（5 个标签，单选） */}
-      <div className="flex flex-wrap items-center gap-2 text-[12px]">
-        <span className="font-bold text-[#8b6f45]">洞察榜</span>
+      {/* 收藏健康度（D3）：≥6 所才显示，最多两条客观提示 */}
+      {hints.length > 0 && (
+        <ul className="space-y-1 text-[0.6875rem] leading-5 text-[#a26047]">
+          {hints.map((h) => (
+            <li key={h.key}>· {t(h.textKey)}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 text-[0.75rem]">
+        <span className="font-bold text-[#8b6f45]">{t("toolbar.insights")}</span>
         {INSIGHT_DEFS.map((d) => {
           const n = all.filter(d.hit).length;
           const on = insight === d.key;
@@ -245,16 +281,15 @@ export function CollegesToolbar({
                 on ? "border-[#8b6f45] bg-[#8b6f45] text-white" : "border-[#c9cfc6] bg-white text-[#50645b]"
               }`}
             >
-              {d.label} {n}
+              {t(INSIGHT_LABEL[d.key])} {n}
             </button>
           );
         })}
       </div>
 
-      {/* 第 4 行附：匹配档位筛选（仅在开启匹配后出现） */}
       {userSat != null && (
-        <div className="flex flex-wrap items-center gap-2 text-[12px]">
-          <span className="text-[#68786e]">初步区间</span>
+        <div className="flex flex-wrap items-center gap-2 text-[0.75rem]">
+          <span className="text-[#68786e]">{t("cmp.band")}</span>
           <button
             type="button"
             onClick={() => onFilters({ match: "" })}
@@ -262,34 +297,29 @@ export function CollegesToolbar({
               filters.match === "" ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#c9cfc6] bg-white text-[#50645b]"
             }`}
           >
-            全部
+            {t("toolbar.bandAll")}
           </button>
-          {MATCH_ORDER.map((t) => (
+          {MATCH_ORDER.map((b) => (
             <button
-              key={t}
+              key={b}
               type="button"
-              onClick={() => onFilters({ match: t })}
+              onClick={() => onFilters({ match: b })}
               className={`rounded-full border px-3 py-1 ${
-                filters.match === t ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#c9cfc6] bg-white text-[#50645b]"
+                filters.match === b ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#c9cfc6] bg-white text-[#50645b]"
               }`}
             >
-              {MATCH_LABEL[t]} {matchCounts[t] ?? 0}
+              {t(BAND_LABEL[b])} {matchCounts[b] ?? 0}
             </button>
           ))}
-          <span className="w-full text-[11px] leading-5 text-[#a26047]">{MATCH_DISCLAIMER}</span>
+          <span className="w-full text-[0.6875rem] leading-5 text-[#a26047]">{matchDisclaimer(lang)}</span>
         </div>
       )}
 
-      {/* 第 5 行：计数 */}
-      <div className="flex flex-wrap items-center gap-3 text-[12px] text-[#68786e]">
-        <span>
-          共 <b className="text-[#17382f]">{resultCount}</b> 所院校
-        </span>
-        <span>· 综合性大学 {all.filter((c) => c.type === "uni").length}</span>
-        <span>· 文理学院 {all.filter((c) => c.type === "lac").length}</span>
+      <div className="flex flex-wrap items-center gap-3 text-[0.75rem] text-[#68786e]">
+        <span>{t("page.count", { n: resultCount })}</span>
+        <span>· {t("page.uni", { n: all.filter((c) => c.type === "uni").length })}</span>
+        <span>· {t("page.lac", { n: all.filter((c) => c.type === "lac").length })}</span>
       </div>
     </div>
   );
 }
-
-export { EMPTY_FILTERS };

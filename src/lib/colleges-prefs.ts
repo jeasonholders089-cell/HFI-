@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { readJson, removeKey, writeJson } from "./colleges-storage";
+import type { Lang } from "./colleges-i18n";
 
 /**
  * 页面级偏好（收藏 / 匹配分数）的外部存储源。
@@ -15,9 +16,11 @@ import { readJson, removeKey, writeJson } from "./colleges-storage";
 export type CollegePrefs = {
   favs: readonly string[];
   sat: number | null;
+  lang: Lang;
+  font: 0 | 1 | 2;
 };
 
-const EMPTY: CollegePrefs = { favs: [], sat: null };
+const EMPTY: CollegePrefs = { favs: [], sat: null, lang: "zh", font: 0 };
 
 let cache: CollegePrefs = EMPTY;
 let loaded = false;
@@ -29,6 +32,8 @@ function load(): CollegePrefs {
   return {
     favs: Array.isArray(favs) ? favs.filter((x) => typeof x === "string") : [],
     sat: typeof sat === "number" && Number.isFinite(sat) ? sat : null,
+    lang: readJson<Lang>("lang", "zh") === "en" ? "en" : "zh",
+    font: ([0, 1, 2] as const).includes(readJson<0 | 1 | 2>("font", 0)) ? readJson<0 | 1 | 2>("font", 0) : 0,
   };
 }
 
@@ -71,5 +76,15 @@ export function toggleFavPref(en: string): void {
 export function setSatPref(sat: number | null): void {
   if (sat == null) removeKey("sat");
   else writeJson("sat", sat);
+  emit();
+}
+
+export function setLangPref(lang: Lang): void {
+  writeJson("lang", lang);
+  emit();
+}
+
+export function setFontPref(font: 0 | 1 | 2): void {
+  writeJson("font", font);
   emit();
 }
