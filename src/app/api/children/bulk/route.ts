@@ -7,5 +7,7 @@ export async function POST(req:Request){try{
  const checked=checkBulkRows(raw as Record<string,unknown>[]);
  if(!checked.ok)return NextResponse.json({error:checked.error},{status:400});
  const valid=checked.rows.map(r=>({englishName:r.englishName,age:Number(r.age),dreamSchool:r.dreamSchool,interests:r.interests,activities:r.activities,selfDescription:r.selfDescription,parentObservation:r.parentObservation,dreamCareer:r.dreamCareer}));
- const inserted=await getDb().insert(children).values(valid).returning({id:children.id});return NextResponse.json({count:inserted.length});
+ // 返回 id 列表：前端要拿它**就地**给这批孩子跑画像（不用再跑去大屏点一次）
+ const inserted=await getDb().insert(children).values(valid).returning({id:children.id});
+ return NextResponse.json({count:inserted.length,ids:inserted.map(r=>r.id)});
  }catch{return NextResponse.json({error:'导入失败，请检查文件后重试'},{status:500})}}

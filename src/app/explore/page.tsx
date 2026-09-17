@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/site-nav";
 import { DreamSchoolMap, type DreamSchoolMapItem } from "@/components/explore/dream-school-map";
 import { categorized, CATEGORIES, CATEGORY_NOTES } from "@/lib/growth-categories";
+import { hasProfile } from "@/lib/child-profile";
 
 /**
  * 现场全景（docs/10 §3.1 / docs/11 §4.2）。
@@ -49,13 +50,7 @@ type Summary = {
 
 type Cloud = { groups: { word: string; count: number }[]; total: number; generatedAt: string };
 
-function hasProfile(c: Child) {
-  try {
-    return JSON.parse(c.aiDirections || "[]").length === 3;
-  } catch {
-    return false;
-  }
-}
+
 
 /** 工作人员按钮：淡色小按钮，不占第一屏主体（docs/10 §3.1 的 ①）。 */
 const BTN =
@@ -355,8 +350,8 @@ export default function Explore() {
   }, [sessionDate]);
 
   const rows = data?.children || [];
-  const completed = rows.filter(hasProfile).length;
-  const pendingCategories = rows.filter((c) => hasProfile(c) && !categorized(c.aiDirections));
+  const completed = rows.filter((c) => hasProfile(c.aiDirections)).length;
+  const pendingCategories = rows.filter((c) => hasProfile(c.aiDirections) && !categorized(c.aiDirections));
 
   /**
    * 只显示**属于当前这一场**的那份词云（docs/10 §3.8）。
@@ -482,7 +477,7 @@ export default function Explore() {
             <button
               type="button"
               disabled={busy || loading || rows.length === completed}
-              onClick={() => analyzeChildren(rows.filter((c) => !hasProfile(c)))}
+              onClick={() => analyzeChildren(rows.filter((c) => !hasProfile(c.aiDirections)))}
               className={BTN}
             >
               {running ? "AI 分析中…" : "分析全部待分析孩子"}
@@ -757,7 +752,7 @@ export default function Explore() {
                         <tr key={c.id}>
                           <td className="p-3">{c.interests}</td>
                           <td className="p-3">
-                            {hasProfile(c) ? (
+                            {hasProfile(c.aiDirections) ? (
                               <details>
                                 <summary className="cursor-pointer">已生成 · 查看画像</summary>
                                 {JSON.parse(c.aiDirections || "[]").map(
