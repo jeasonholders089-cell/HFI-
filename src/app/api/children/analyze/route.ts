@@ -1,4 +1,4 @@
-import {categorized,CATEGORIES} from '@/lib/growth-categories';
+import {categorized,CATEGORIES,CATEGORY_ENUM,CATEGORY_RULES} from '@/lib/growth-categories';
 import {NextResponse} from 'next/server';
 import {getDb} from '@/lib/db';
 import {children} from '@/db/schema';
@@ -14,7 +14,7 @@ export async function POST(req:Request){
  let existing: Record<string,unknown>[]=[];
  try { const parsed=JSON.parse(child.aiDirections||'[]'); if(Array.isArray(parsed)&&parsed.length===3)existing=parsed; } catch {}
  if(existing.length===3){
- const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify(existing),system_prompt:'对输入的3个教育探索方向按原顺序分类。仅返回JSON {"categories":["类别1","类别2","类别3"]}。每个类别必须是人文科学、社会科学、自然科学、艺术之一。工程计算机归自然科学，商科归社会科学，设计归艺术。根据方向的完整语义判断。'});
+ const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify(existing),system_prompt:`对输入的3个教育探索方向按原顺序分类。仅返回JSON {"categories":["类别1","类别2","类别3"]}。每个类别必须是${CATEGORY_ENUM}之一。判定规则：${CATEGORY_RULES}根据方向的完整语义判断，不要只看方向名里的一个词。`});
  const raw=(task.output as {response?:string}|null)?.response||'';
  const result=JSON.parse(raw.slice(raw.indexOf('{'),raw.lastIndexOf('}')+1));
  if(!Array.isArray(result.categories)||result.categories.length!==3||!result.categories.every((c:typeof CATEGORIES[number])=>CATEGORIES.includes(c)))throw Error('分类结果无效，请重试');
@@ -23,7 +23,7 @@ export async function POST(req:Request){
  return NextResponse.json({ok:true});
  }
  const {age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}=child;
- const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据问卷信息输出严格JSON，不要代码围栏，只包含三个学术方向及其依据：{"directions":[{"category":"人文科学|社会科学|自然科学|艺术中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据"}]}。每个方向category必须从人文科学、社会科学、自然科学、艺术中选一个最适合的类别。工程、计算机归自然科学，商科归社会科学，设计归艺术。directions必须恰好3项，所有字段必须是非空字符串。只输出这三个方向与依据，不要输出画像总结、特质或其他字段。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。`});
+ const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据问卷信息输出严格JSON，不要代码围栏，只包含三个学术方向及其依据：{"directions":[{"category":"${CATEGORIES.join('|')}中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据"}]}。每个方向category必须从${CATEGORY_ENUM}中选一个最适合的类别。判定规则：${CATEGORY_RULES}directions必须恰好3项，所有字段必须是非空字符串。只输出这三个方向与依据，不要输出画像总结、特质或其他字段。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。`});
  const raw=(task.output as {response?:string}|null)?.response||'';
  let a;try{a=JSON.parse(raw.slice(raw.indexOf('{'),raw.lastIndexOf('}')+1))}catch{throw Error('模型返回格式异常，请重试')}
  const fields=['category','name','nameEn','reason'];
