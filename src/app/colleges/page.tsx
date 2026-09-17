@@ -348,7 +348,8 @@ function CollegesView() {
             </section>
           )}
 
-          <aside className="flex min-h-[380px] flex-col overflow-hidden rounded-xl border border-[#d6d2c7] max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:max-h-[78vh] max-lg:rounded-b-none">
+          {/* min-h 只在 lg 以上生效：手机上如果留着 380px 最小高度，收起时会变成一大块空白压在页面底部 */}
+          <aside className="flex flex-col overflow-hidden rounded-xl border border-[#d6d2c7] lg:min-h-[380px] max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:max-h-[78vh] max-lg:rounded-b-none">
             {/* 手机端折叠条：收起时只有一条窄条贴底（docs/06 7.8） */}
             <button
               type="button"
@@ -421,7 +422,7 @@ function CollegesView() {
           type="button"
           onClick={backToTop}
           aria-label={t("global.backTop")}
-          className="fixed bottom-6 right-6 z-30 hidden h-10 w-10 rounded-full border border-[#d6d2c7] bg-white/95 text-[#50645b] shadow-md hover:border-[#8b6f45] hover:text-[#8b6f45] lg:block"
+          className="fixed bottom-6 right-6 z-30 h-10 w-10 rounded-full border border-[#d6d2c7] bg-white/95 text-[#50645b] shadow-md hover:border-[#8b6f45] hover:text-[#8b6f45] max-lg:bottom-20"
         >
           ↑
         </button>

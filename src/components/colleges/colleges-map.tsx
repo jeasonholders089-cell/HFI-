@@ -539,14 +539,20 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
 
       {/* 首次进入的操作提示（A10）：role=note，3 秒淡出 */}
       {showTips && (
-        <button
-          type="button"
+        <div
           role="note"
           onClick={closeTips}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[#d6d2c7] bg-white/95 px-4 py-2 text-[0.75rem] text-[#50645b] shadow-sm"
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#d6d2c7] bg-white/95 px-4 py-2 text-[0.75rem] text-[#50645b] shadow-sm"
         >
-          {coarse ? t("map.hintTouch") : t("map.hint")}
-        </button>
+          <span>{coarse ? t("map.hintTouch") : t("map.hint")}</span>
+          <button
+            type="button"
+            onClick={closeTips}
+            className="rounded-full border border-[#aeb7ad] px-2 py-0.5 text-[0.6875rem] hover:border-[#8b6f45]"
+          >
+            {t("map.dismiss")}
+          </button>
+        </div>
       )}
 
       {/* 悬停提示（A7）：跟随光标，接近边缘时翻转 */}
