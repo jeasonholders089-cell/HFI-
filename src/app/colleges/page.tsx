@@ -140,6 +140,19 @@ function CollegesView() {
   const compareOpen = compareRequested && slots.length >= 2;
   const active = hasActiveFilters({ filters, insight, favOnly, favs, userSat });
 
+  /**
+   * 详情栏只在「地图视图 + 选中了院校」时出现（2026-09-17 产品调整）。
+   *
+   * 之前是常驻的：地图视图一进来就被挤成 62% 宽，表格视图右边还杵着一个空栏。
+   * 现在的规则：
+   *   - 地图视图、没选中   → 地图铺满整行
+   *   - 地图视图、选中了   → 左地图 + 右详情（62 / 38）
+   *   - 表格视图           → 表格铺满整行，不出详情栏（点行仍然回到地图并打开它）
+   */
+  const paneOpen = view === "map" && current !== null;
+  /** 详情栏收起时，对比位没有落脚点 —— 那就把托盘挪到内容上方，收藏的东西不能消失 */
+  const trayAbove = slots.length > 0 && !paneOpen;
+
   const toggleFav = (en: string) => toggleFavPref(en);
 
   /** 字号三档循环（A → A+ → A++ → A），写在根元素上让 rem 文案整体缩放。 */
@@ -227,7 +240,11 @@ function CollegesView() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f4f0e6] pb-28 text-[#17382f] lg:pb-8">
+    <main
+      className={`flex min-h-screen flex-col bg-[#f4f0e6] text-[#17382f] ${
+        paneOpen ? "pb-28 lg:pb-8" : ""
+      }`}
+    >
       <header className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-8 py-6">
         <Link href="/" className="text-xl tracking-[.18em]">
           HFI 家长成长营
@@ -308,14 +325,41 @@ function CollegesView() {
           onOpenMatch={() => setMatchOpen(true)}
           onExport={() => setExportOpen(true)}
           hints={hints}
-          onBrowse={onMapSelect}
+          // 搜索联想是「我要去看这所学校」——切回地图视图再打开详情栏，
+          // 否则在表格视图里点了联想什么都没发生（详情栏在表格视图不出现）
+          onBrowse={(en) => {
+            setView("map");
+            onMapSelect(en);
+          }}
           active={active}
         />
 
-        {/* 地图区与详情栏：比例来自 --colleges-map-ratio；<1024px 切上下布局 + 底部抽屉 */}
-        <div className="colleges-split">
+        {/* 详情栏收起时的对比位托盘：原来它在详情栏顶部，收起后得有个落脚点 */}
+        {trayAbove && (
+          <div className="mb-5 overflow-hidden rounded-xl border border-[#d6d2c7]">
+            <CompareSlots
+              colleges={COLLEGES}
+              slots={slots}
+              canCompare={slots.length >= 2}
+              onPick={browse}
+              onRemove={removeSlot}
+              onClear={clearSlots}
+              onCompare={() => setCompareRequested(true)}
+            />
+          </div>
+        )}
+
+        {/*
+          地图区与详情栏：比例来自 --colleges-map-ratio；<1024px 切上下布局 + 底部抽屉。
+          详情栏不在时**不加这个 class** —— 那是个 62/38 的 grid，会平白把地图挤窄。
+        */}
+        <div className={paneOpen ? "colleges-split" : ""}>
           {view === "map" ? (
-            <section className="h-[58vh] min-h-[380px] overflow-hidden rounded-xl border border-[#d6d2c7]">
+            <section
+              className={`overflow-hidden rounded-xl border border-[#d6d2c7] ${
+                paneOpen ? "h-[58vh] min-h-[380px]" : "h-[70vh] min-h-[460px]"
+              }`}
+            >
               {emptyKind ? (
                 <EmptyState kind={emptyKind} onReset={resetAll} />
               ) : (
@@ -354,6 +398,7 @@ function CollegesView() {
             滚动只发生在详情栏内部（下面那个 flex-1 overflow-auto），页面本身不跟着长。
             min-h 只在 lg 以上生效：手机上留着 380px 最小高度，收起时会变成一大块空白。
           */}
+          {paneOpen && (
           <aside className="flex flex-col overflow-hidden rounded-xl border border-[#d6d2c7] lg:h-[58vh] lg:min-h-[380px] max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:max-h-[78vh] max-lg:rounded-b-none">
             {/* 手机端折叠条：收起时只有一条窄条贴底（docs/06 7.8） */}
             <button
@@ -410,6 +455,7 @@ function CollegesView() {
               </div>
             </div>
           </aside>
+          )}
         </div>
 
         {/* 6.3 的坑 2：地图区域不滚页面，给一行静态提示 */}
