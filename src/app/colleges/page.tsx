@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
 
 import { CompareModal } from "@/components/colleges/compare-modal";
 import { CompareSlots } from "@/components/colleges/compare-slots";
@@ -20,7 +20,7 @@ import {
 } from "@/lib/colleges-filter";
 import { MATCH_LABEL, matchTag, matchWhy, type MatchTag } from "@/lib/colleges-match";
 import { initialSlotState, slotReducer } from "@/lib/colleges-slots";
-import { KEYS, readJson, removeKey, writeJson } from "@/lib/colleges-storage";
+import { setSatPref, toggleFavPref, useCollegePrefs } from "@/lib/colleges-prefs";
 
 /**
  * 选校地图（docs/05 v0.6 / docs/08 v0.4）。
@@ -37,16 +37,13 @@ export default function CollegesPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [insight, setInsight] = useState<InsightKey | null>(null);
   const [favOnly, setFavOnly] = useState(false);
-  const [favs, setFavs] = useState<ReadonlySet<string>>(() => new Set<string>());
-  const [userSat, setUserSat] = useState<number | null>(null);
   const [matchOpen, setMatchOpen] = useState(false);
 
-  // 本地存储恢复（docs/08 §6.1）—— 刷新后收藏与匹配分数还在
-  useEffect(() => {
-    setFavs(new Set(readJson<string[]>("favs", [])));
-    const sat = readJson<number | null>("sat", null);
-    if (typeof sat === "number") setUserSat(sat);
-  }, []);
+  // 收藏与匹配分数来自外部存储（docs/08 §6.1）—— 刷新后仍在，
+  // 且 hydration 由 useSyncExternalStore 处理，不用 effect + setState。
+  const prefs = useCollegePrefs();
+  const userSat = prefs.sat;
+  const favs = useMemo(() => new Set(prefs.favs), [prefs.favs]);
 
   const visible = useMemo(
     () => filterColleges(COLLEGES, { filters, insight, favOnly, favs, userSat }),
@@ -90,15 +87,7 @@ export default function CollegesPage() {
   const compareOpen = compareRequested && slots.length >= 2;
   const active = hasActiveFilters({ filters, insight, favOnly, favs, userSat });
 
-  const toggleFav = (en: string) => {
-    setFavs((prev) => {
-      const next = new Set(prev);
-      if (next.has(en)) next.delete(en);
-      else next.add(en);
-      writeJson("favs", [...next]);
-      return next;
-    });
-  };
+  const toggleFav = (en: string) => toggleFavPref(en);
 
   const resetAll = () => {
     setFilters(EMPTY_FILTERS);
@@ -226,13 +215,11 @@ export default function CollegesPage() {
         <MatchModal
           current={userSat}
           onApply={(sat) => {
-            setUserSat(sat);
-            writeJson("sat", sat);
+            setSatPref(sat);
             setMatchOpen(false);
           }}
           onClear={() => {
-            setUserSat(null);
-            removeKey("sat");
+            setSatPref(null);
             setFilters((prev) => ({ ...prev, match: "" }));
             setMatchOpen(false);
           }}
