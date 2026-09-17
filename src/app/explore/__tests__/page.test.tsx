@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import Explore from "../page";
@@ -24,6 +24,13 @@ const SUMMARY = {
     健康与公共服务: 0,
   },
   children: [],
+  // 场次（docs/10 §3.7）：一天一场，按北京时间算日界
+  session: {
+    date: "2026-09-18",
+    isToday: true,
+    all: false,
+    availableDates: ["2026-09-18", "2026-09-10"],
+  },
   dreamSchools: [
     { name: "斯坦福大学", count: 2, matched: true, st: "CA", lat: 37.4275, lng: -122.1697 },
     { name: "罗德岛设计学院", count: 1, matched: true, st: "RI", lat: 41.82711, lng: -71.40931 },
@@ -63,10 +70,50 @@ describe("/explore 的版面顺序与口径", () => {
     const { container } = render(<Explore />);
     await screen.findByText("梦想院校地图");
     const h1 = container.querySelector("h1");
-    const row = h1?.parentElement;
+    // h1 现在包了一层（里面还有场次标签），所以往上一级找标题行容器
+    const row = h1?.closest("div.mt-4");
     expect(row?.textContent).toContain("已录入孩子");
     expect(row?.textContent).toContain("已生成画像");
     expect(row?.textContent).toContain("待分析");
+  });
+
+  /**
+   * 场次（docs/10 §3.7，一天一场）。
+   *
+   * 这是这次改动最容易做错的地方：默认**必须**不带 `date` 参数（由服务端按北京时间定"今天"），
+   * 而不是由浏览器算日期——浏览器时区、机器时间都可能不对，把"今天"交给服务端才算得准。
+   */
+  describe("场次", () => {
+    it("默认不带 date 参数（今天的场次由服务端按北京时间定）", async () => {
+      const fn = mockFetch();
+      render(<Explore />);
+      await screen.findByText("梦想院校地图");
+      expect(String(fn.mock.calls[0][0])).toBe("/api/children/summary");
+      // 场次标签要出现在标题行，家长看"今天这一场"
+      expect(screen.getByText(/今天的场次 · 2026-09-18/)).toBeTruthy();
+    });
+
+    it("切到某个历史场次 → 带 ?date= 重拉，标签跟着变", async () => {
+      const fn = mockFetch();
+      render(<Explore />);
+      await screen.findByText("梦想院校地图");
+
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "2026-09-10" } });
+
+      await waitFor(() =>
+        expect(fn.mock.calls.some((c) => String(c[0]).includes("date=2026-09-10"))).toBe(true),
+      );
+    });
+
+    it("切到「全部场次」→ 带 date=all（复盘口径，等于改版前）", async () => {
+      const fn = mockFetch();
+      render(<Explore />);
+      await screen.findByText("梦想院校地图");
+
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "all" } });
+
+      await waitFor(() => expect(fn.mock.calls.some((c) => String(c[0]).includes("date=all"))).toBe(true));
+    });
   });
 
   it("方向统计按人数降序，0 人的类别不渲染，也没有「艺术科学」这种特例", async () => {

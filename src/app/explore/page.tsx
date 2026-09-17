@@ -34,8 +34,17 @@ type Summary = {
   classified: number;
   children: Child[];
   directions: Record<string, number>;
-/** 服务端算好的**人数**与坐标（未命中的也返回，matched:false、坐标为 null） */
+  /** 服务端算好的**人数**与坐标（未命中的也返回，matched:false、坐标为 null） */
   dreamSchools: DreamSchoolMapItem[];
+  /** 场次（docs/10 §3.7）：一天一场，按北京时间算日界 */
+  session: {
+    /** 当前场次的日期；「全部场次」时为 null */
+    date: string | null;
+    isToday: boolean;
+    all: boolean;
+    /** 有数据的场次（倒序），给切换器用 */
+    availableDates: string[];
+  };
 };
 
 type Cloud = { groups: { word: string; count: number }[]; total: number; generatedAt: string };
@@ -84,6 +93,14 @@ export default function Explore() {
   /** 后台轮询连续失败次数；≥3 才在标题行提示"可能已过期" */
   const [staleCount, setStaleCount] = useState(0);
   /**
+   * 场次选择（docs/10 §3.7）：`""` = 今天（由服务端按北京时间定）、
+   * `YYYY-MM-DD` = 指定场次、`all` = 全部场次。
+   */
+  const [sessionDate, setSessionDate] = useState("");
+
+  /** 场次查询串：不选 = 不带参数（服务端默认"今天"）。 */
+  const sessionQuery = () => (sessionDate ? `?date=${encodeURIComponent(sessionDate)}` : "");
+  /**
    * 轮询要跳过"正在进行的工作人员动作"。用 ref 而不是 state：
    * 定时器的回调不该因为 busy 变了就重建（那会重置计时）。
    */
@@ -94,7 +111,12 @@ export default function Explore() {
     setCloudLoading(true);
     setCloudError("");
     try {
-      const r = await fetch("/api/children/wordcloud", { method: "POST" });
+      const r = await fetch("/api/children/wordcloud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // 词云也按场次（docs/10 §3.7）：混进历史就与地图/统计对不上了
+        body: JSON.stringify({ date: sessionDate }),
+      });
       const result = await r.json();
       if (!r.ok) throw Error(result.error || "词云生成失败");
       setCloud(result);
@@ -201,13 +223,16 @@ export default function Explore() {
     }
   }
 
-  async function refresh() {
+  async function refresh() { 
     setLoading(true);
     setError("");
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const r = await fetch("/api/children/summary", { cache: "no-store", signal: controller.signal });
+      const r = await fetch(`/api/children/summary${sessionQuery()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       if (!r.ok) throw Error("暂时无法读取数据库，请点击刷新数据重试");
       setData(await r.json());
       setUpdatedAt(new Date());
@@ -226,9 +251,11 @@ export default function Explore() {
     }
   }
 
-  useEffect(() => {
-    void refresh();
-  }, []);
+ useEffect(() => {
+  void refresh();
+  // 切场次要重拉（docs/10 §3.7）
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionDate]);
 
   /**
    * 现场态：每 45 秒静默拉一次（docs/11 §5.1，评审 M1）。
@@ -249,7 +276,9 @@ export default function Explore() {
       if (busyRef.current) return;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
-      fetch("/api/children/summary", { cache: "no-store", signal: controller.signal })
+      // 查询串在 effect 内部自己算，避免把每次渲染都新建的函数塞进依赖
+      const qs = sessionDate ? `?date=${encodeURIComponent(sessionDate)}` : "";
+      fetch(`/api/children/summary${qs}`, { cache: "no-store", signal: controller.signal })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("bad status"))))
         .then((json) => {
           if (cancelled) return;
@@ -266,7 +295,7 @@ export default function Explore() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [sessionDate]);
 
   const rows = data?.children || [];
   const completed = rows.filter(hasProfile).length;
@@ -288,6 +317,15 @@ export default function Explore() {
   const busy = running || clearing || deletingId !== null;
   busyRef.current = busy;
 
+  /** 场次标签（docs/10 §3.7）：家长看"今天这一场"，工作人员看日期。 */
+  const sessionLabel = data?.session
+    ? data.session.all
+      ? "全部场次"
+      : data.session.isToday
+        ? `今天的场次 · ${data.session.date}`
+        : `历史场次 · ${data.session.date}`
+    : "";
+
   return (
     <main className="min-h-screen bg-[#f4f0e6] text-[#17382f]">
       <header className="mx-auto flex max-w-7xl justify-between px-8 py-7">
@@ -303,7 +341,10 @@ export default function Explore() {
         {/* ① 标题行：左边是标题 + 三个数字，右边是工作人员按钮（浅色小按钮） */}
         <div className="mt-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
           <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
-            <h1 className="text-4xl font-light">孩子们的成长全景</h1>
+            <div>
+              <h1 className="text-4xl font-light">孩子们的成长全景</h1>
+              {sessionLabel && <p className="mt-2 text-xs text-[#8b6f45]">{sessionLabel}</p>}
+            </div>
             {data && (
               <div className="flex gap-8">
                 {(
@@ -340,6 +381,32 @@ export default function Explore() {
           )}
           <div className="flex flex-wrap items-center gap-2">
             {/* 「更新于 HH:MM」——现场判断"大屏是不是活的"的唯一证据（docs/11 §5.1） */}
+            {/*
+              场次切换（docs/10 §3.7，一天一场）：只有工作人员会用它，
+              所以做成浅色小控件放在标题行右侧，不抢第一屏。
+            */}
+            {data?.session && data.session.availableDates.length > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-[#607168]">
+                场次
+                <select
+                  value={sessionDate || "today"}
+                  onChange={(e) => setSessionDate(e.target.value === "today" ? "" : e.target.value)}
+                  className="rounded border border-[#aeb7ad] bg-white px-2 py-1.5 text-xs text-[#17382f]"
+                >
+                  <option value="today">
+                    今天{data.session.isToday && data.session.date ? `（${data.session.date}）` : ""}
+                  </option>
+                  {data.session.availableDates
+                    .filter((d) => d !== data.session.date)
+                    .map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  <option value="all">全部场次</option>
+                </select>
+              </label>
+            )}
             {updatedAt && (
               <span
                 className={`text-xs ${staleCount >= STALE_AFTER ? "text-[#a26047]" : "text-[#607168]"}`}
