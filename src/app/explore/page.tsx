@@ -71,17 +71,20 @@ function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** 词云的字号范围与词数上限（2026-09-17 调整，理由见 docs/10 §3.8）。 */
-export const CLOUD_FONT_MIN = 30;
-export const CLOUD_FONT_MAX = 104;
-export const CLOUD_FONT_FLAT = 56;
+/**
+ * 词云的字号范围与词数上限（docs/10 §3.9）。
+ *
+ * 字号试过 30–104（想解决"5 米外看不清"），现场反馈**不需要那么大**，回到 18–64；
+ * 词数从 9 提到 12（现场反馈"太少"）——**这才是那条反馈的主因**。
+ */
+export const CLOUD_FONT_MIN = 18;
+export const CLOUD_FONT_MAX = 64;
+export const CLOUD_FONT_FLAT = 30;
 export const CLOUD_MAX_WORDS = 12;
 
 /**
  * 按人次算字号：线性映射到 `CLOUD_FONT_MIN`–`CLOUD_FONT_MAX`；
  * 所有人次相同时给 `CLOUD_FONT_FLAT`（不假装有高低差——人数真的相同就该一样大）。
- *
- * 原来用的是 18–64：**18px 在 1920 大屏、5 米外基本读不到**，而容器很宽、完全放得下更大的字。
  */
 export function wordFontSize(count: number, min: number, max: number): number {
   if (max <= min) return CLOUD_FONT_FLAT;

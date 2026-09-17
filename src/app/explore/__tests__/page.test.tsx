@@ -167,10 +167,10 @@ describe("/explore 的版面顺序与口径", () => {
   });
 
   /**
-   * 词云的字号映射（docs/10 §3.8，2026-09-17 调整）。
+   * 词云的字号映射（docs/10 §3.9）。
    *
-   * 为什么要测：原来的范围是 18–64，**18px 在 1920 大屏、5 米外基本读不到**，
-   * 而容器很宽、完全放得下更大的字。改动后最小 30、最大 104。
+   * 为什么要测：字号是"现场一眼看上去对不对"的关键，而且**试过一版 30–104 被现场否掉**
+   * （"不需要太大，正常就行"）。所以把"正常"这个区间钉住：别悄悄放大、也别缩到看不见。
    * 另外"所有人次相同"时不能假装有高低差——人数真的相同就该一样大。
    */
   describe("词云字号", () => {
@@ -190,8 +190,11 @@ describe("/explore 的版面顺序与口径", () => {
       expect(wordFontSize(9, 9, 9)).toBeLessThan(CLOUD_FONT_MAX);
     });
 
-    it("字号下限比旧版（18px）明显大 —— 那条改动的全部意义", () => {
-      expect(CLOUD_FONT_MIN).toBeGreaterThanOrEqual(28);
+    it("字号保持在「正常」区间：下限别缩到看不见，上限别放到喧宾夺主", () => {
+      // 曾经试过 30–104，现场反馈"不需要太大"；18/64 是那个"正常"的档
+      expect(CLOUD_FONT_MIN).toBeGreaterThanOrEqual(16);
+      expect(CLOUD_FONT_MAX).toBeLessThanOrEqual(72);
+      expect(CLOUD_FONT_MAX / CLOUD_FONT_MIN).toBeGreaterThan(2); // 还要看得出高低差
     });
   });
 
