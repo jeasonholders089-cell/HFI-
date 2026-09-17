@@ -12,9 +12,11 @@
     "test:coverage": "vitest run --coverage --coverage.include=lib/colleges-{project,filter,match,derive,format,i18n}.ts",
     "verify": "pnpm lint && pnpm test && pnpm build",
     "build:extract": "tsx scripts/extract-colleges.ts",
+    "build:extract-coords": "tsx scripts/extract-university-coords.ts",
     "build:land": "tsx scripts/extract-us-land.ts",
     "build:map": "tsx scripts/build-us-map.ts",
     "build:colleges": "tsx scripts/build-colleges.ts",
+    "build:coords": "tsx scripts/build-coords.ts",
     "build:data": "pnpm build:map && pnpm build:colleges"
   },
   "dependencies": {

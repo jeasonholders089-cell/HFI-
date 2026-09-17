@@ -1,12 +1,12 @@
 // Curated institution aliases; exact normalized matching avoids ambiguous substring matches.
-const entries: [string, string[]][] = [
+export const ALIAS_ENTRIES: [string, string[]][] = [
  ['普林斯顿大学',['普林斯顿','Princeton University','Princeton']],
  ['哈佛大学',['哈佛','Harvard University','Harvard']],
  ['耶鲁大学',['耶鲁','Yale University','Yale']],
  ['斯坦福大学',['斯坦福','Stanford University','Stanford','Standord University','Standord','Standford University','Standford']],
  ['麻省理工学院',['麻省理工','MIT','Massachusetts Institute of Technology']],
  ['加州理工学院',['加州理工','Caltech','California Institute of Technology']],
- ['哥伦比亚大学',['哥伦比亚','Columbia University','Columbia']],
+ ['哥伦比亚大学',['哥伦比亚','Columbia University','Columbia','Columbia University in the City of New York']],
  ['宾夕法尼亚大学',['宾大','宾夕法尼亚','UPenn','University of Pennsylvania','Penn']],
  ['布朗大学',['布朗','Brown University','Brown']],
  ['达特茅斯学院',['达特茅斯','Dartmouth College','Dartmouth']],
@@ -71,8 +71,12 @@ const entries: [string, string[]][] = [
  ['茱莉亚学院',['茱莉亚','朱莉亚学院','Juilliard','The Juilliard School']],
 ];
 function key(value:string){return value.normalize('NFKC').toLowerCase().replace(/[\s.,，。·’'“”"\-–—()（）]/g,'');}
-const lookup=new Map(entries.flatMap(([canonical,aliases])=>[canonical,...aliases].map(alias=>[key(alias),canonical] as const)));
+const lookup=new Map(ALIAS_ENTRIES.flatMap(([canonical,aliases])=>[canonical,...aliases].map(alias=>[key(alias),canonical] as const)));
 export function normalizeUniversity(value:string){const clean=value.trim();return lookup.get(key(clean))||clean;}
+/** 别名表命中则返回规范中文名，否则返回 undefined（与 normalizeUniversity 的「原样返回」区分开）。 */
+export function lookupUniversity(value:string):string|undefined{return lookup.get(key(value.trim()));}
+/** 规范中文名 → 该条目的全部写法（规范名 + 英文别名），供坐标匹配逐条尝试。 */
+export function aliasNamesOf(canonical:string):string[]{const hit=ALIAS_ENTRIES.find(([c])=>c===canonical);return hit?[hit[0],...hit[1]]:[canonical];}
 export function parseUniversities(value:string){
  // Resolve full institution names before splitting commas (e.g. UC names).
  return [...new Set(value.split(/[、;；\n/|]+/).flatMap(part=>{

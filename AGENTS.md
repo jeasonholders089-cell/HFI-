@@ -27,8 +27,10 @@
 只给路径，不给结论。**（唯一例外见第五节。）
 
 **一期不建院校-专业库**：院校与专业由 AI 直接推荐，准确度靠 Prompt 约束 + "以官网为准" +
-官网链接三道兜底。现状是 `lib/university-names.ts` 里一张手写的院校别名表，只负责把家长或
-AI 写的校名归一化；全量院校坐标表尚未导入。
+官网链接三道兜底。院校坐标表已导入（2026-09-17）：`data/university-coords.csv`（College
+Scorecard 的 4 年制主校区，2468 所）→ `src/lib/university-coords.ts`，
+匹配靠 `lib/university-names.ts` 的中英文别名表（69 条）+ `lib/school-locate.ts`
+（别名 / 精确 / 唯一包含 / 人工覆盖四级，命中不唯一就算未命中）。
 
 产品正式名称：**HFI 家长成长营**（英文名 HFI Family Growth Camp，用于英文界面与大屏）。
 
@@ -66,7 +68,8 @@ AGENTS.md                # 本文件：项目规范
 README.md                # 给接手的人看：定位、技术栈、本地起服务、部署
 docs/                    # 需求、规格、界面草图、技术方案、评审记录
 output/pdf/              # 面向外部的交付物成品（当前为空）
-data/                    # 选校地图的种子数据与构建产物输入（CSV、州界 TopoJSON）
+data/                    # 种子数据与构建产物输入（选校地图 CSV、州界 TopoJSON、
+                         # 院校坐标表 university-coords.csv + 人工覆盖表）
 scripts/                 # 开发辅助脚本（md_to_pdf.py、选校地图的构建脚本）
 src/                     # 应用代码与部署配置（Next.js 项目根）
 tmp/                     # 临时文件（已被 .gitignore 忽略）
@@ -225,7 +228,7 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 4 �
 - `/entry` 工作人员单条访谈录入
 - `/child/[token]` 孩子成长画像（产品的价值交付页）
 - `/register/success` 提交成功页
-- 院校全量坐标表导入（当前只有手写别名表）
+- 现场全景第一屏的梦想院校地图（坐标表与匹配管线已就绪，见 `docs/10` / `docs/11`）
 
 **选校地图已完成的部分（按里程碑）**
 
