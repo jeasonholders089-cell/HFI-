@@ -4,6 +4,44 @@
    组件里一律 var(--...)（docs/08 §5.5）。三个点色取自现有色板：
    金棕 #8b6f45 / 墨绿 #1e4b3b / 砖红 #a26047，并配形状做二次区分。 */
 :root{
+  /* —— 色板单一来源（palette starts）——
+     下面这组变量既是地图用的色，也是"配色守卫"测试的比对基准
+     （src/lib/__tests__/colleges-palette.test.ts 会解析本段）。 */
+  --palette-1:#f4f0e6;
+  --palette-2:#17382f;
+  --palette-3:#1e4b3b;
+  --palette-4:#f8f5ed;
+  --palette-5:#d6d2c7;
+  --palette-6:#aeb7ad;
+  --palette-7:#c9cfc6;
+  --palette-8:#607168;
+  --palette-9:#68786e;
+  --palette-10:#50645b;
+  --palette-11:#8b6f45;
+  --palette-12:#a26047;
+  --palette-13:#dce4d9;
+  --palette-14:#e4eadf;
+  --palette-15:#527665;
+  --palette-16:#829b8a;
+  --palette-17:#315d49;
+  --palette-18:#507b61;
+  --palette-19:#667d70;
+  --palette-20:#d2a477;
+  --palette-21:#718077;
+  --palette-22:#9aa59c;
+  --palette-23:#ffffff;
+  --palette-24:#211d18;
+  /* 以下四个是本页新增的浅色调，全部由上面派生，不是新色相 */
+  --palette-25:#f0e6d8;
+  --palette-26:#f2ede4;
+  --palette-27:#f5ecdf;
+  --palette-28:#e6e0d5;
+  --palette-29:#efebe3;
+  --palette-30:#e8ded0;
+  /* 地图底图的海洋/陆地（浅色调，由底色派生） */
+  --palette-31:#e8e6dc;
+  --palette-32:#fdfcf8;
+  /* —— 色板单一来源（palette ends）—— */
   --dot-uni:#8b6f45;
   --dot-pub:#1e4b3b;
   --dot-lac:#a26047;

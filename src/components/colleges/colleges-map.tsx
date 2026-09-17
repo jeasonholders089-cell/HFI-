@@ -169,7 +169,7 @@ export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
   const showStateLabels = k >= LABEL_K_STATE;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#e8e6dc]" style={{ background: "var(--map-ocean)" }}>
+    <div className="relative h-full w-full overflow-hidden" style={{ background: "var(--map-ocean)" }}>
       <svg
         ref={svgRef}
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
@@ -281,7 +281,7 @@ export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
           type="button"
           onClick={() => zoomFromCenter(1.35)}
           aria-label="放大"
-          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#4a4238] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
+          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           ＋
         </button>
@@ -289,7 +289,7 @@ export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
           type="button"
           onClick={() => zoomFromCenter(1 / 1.35)}
           aria-label="缩小"
-          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#4a4238] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
+          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-lg leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           －
         </button>
@@ -297,7 +297,7 @@ export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
           type="button"
           onClick={resetView}
           aria-label="复位视图"
-          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-base leading-none text-[#4a4238] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
+          className="h-9 w-9 rounded-lg border border-[#d6d2c7] bg-white/95 text-base leading-none text-[#17382f] shadow-sm hover:border-[#8b6f45] hover:text-[#8b6f45]"
         >
           ⟲
         </button>

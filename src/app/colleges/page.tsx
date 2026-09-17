@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
 
 import { SiteNav } from "@/components/site-nav";
+import { CompareModal } from "@/components/colleges/compare-modal";
+import { CompareSlots } from "@/components/colleges/compare-slots";
 import { CollegesMap } from "@/components/colleges/colleges-map";
+import { SchoolProfile } from "@/components/colleges/school-profile";
 import { COLLEGES } from "@/lib/colleges-data";
-import { formatField } from "@/lib/colleges-format";
+import { initialSlotState, slotReducer } from "@/lib/colleges-slots";
 
 /**
  * 选校地图（docs/05 v0.6 / docs/08 v0.4）。
@@ -16,8 +19,13 @@ import { formatField } from "@/lib/colleges-format";
  * 一期**不新增后端接口**——数据在构建期编译进 bundle，整页零网络请求（docs/08 §2.1）。
  */
 export default function CollegesPage() {
-  const [selected, setSelected] = useState<string | null>(null);
-  const [slots, setSlots] = useState<string[]>([]);
+  // 对比位状态机走 lib/colleges-slots.ts —— 单测覆盖的就是这份逻辑（docs/08 §5.3）
+  const [slotState, dispatch] = useReducer(slotReducer, undefined, initialSlotState);
+  const { browsing: selected, slots } = slotState;
+  // 用「是否请求过对比」派生，而不是在 effect 里 setState ——
+  // 后者会触发级联渲染（react-hooks/set-state-in-effect）。
+  const [compareRequested, setCompareRequested] = useState(false);
+  const compareOpen = compareRequested && slots.length >= 2;
 
   // M2 阶段先不做筛选，渲染全量；M4 接入过滤管线
   const visible = COLLEGES;
@@ -25,6 +33,20 @@ export default function CollegesPage() {
     () => (selected ? visible.find((c) => c.en === selected) ?? null : null),
     [selected, visible],
   );
+  const slotColleges = useMemo(
+    () => slots.map((en) => COLLEGES.find((c) => c.en === en)).filter((c): c is (typeof COLLEGES)[number] => !!c),
+    [slots],
+  );
+
+  // 唯一的写入口。browse 走 BROWSE —— 只改浏览位，**不动 slots**（核心不变量）。
+  const browse = useCallback((en: string) => dispatch({ type: "BROWSE", en }), []);
+  const closeBrowse = useCallback(() => dispatch({ type: "CLOSE_BROWSE" }), []);
+  const addSlot = useCallback((en: string) => dispatch({ type: "ADD", en }), []);
+  const removeSlot = useCallback((en: string) => dispatch({ type: "REMOVE", en }), []);
+  const clearSlots = useCallback(() => {
+    dispatch({ type: "CLEAR" });
+    setCompareRequested(false);
+  }, []);
 
   return (
     <main className="flex min-h-screen flex-col bg-[#f4f0e6] text-[#17382f]">
@@ -53,61 +75,41 @@ export default function CollegesPage() {
               colleges={visible}
               selected={selected}
               slots={slots}
-              onSelect={setSelected}
+              onSelect={browse}
             />
           </section>
 
-          <aside className="flex min-h-[380px] flex-col rounded-xl border border-[#d6d2c7] bg-[#f8f5ed]">
-            {current ? (
-              <div className="flex-1 overflow-auto p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-2xl">{current.zh}</h2>
-                    <p className="mt-1 text-sm text-[#68786e]">{current.en}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(null)}
-                    aria-label="关闭"
-                    className="h-7 w-7 shrink-0 rounded-md bg-[#e6e0d5] text-sm text-[#68786e]"
-                  >
-                    ✕
-                  </button>
+          <aside className="flex min-h-[380px] flex-col overflow-hidden rounded-xl border border-[#d6d2c7]">
+            {/* ① 对比位：顶部常驻（docs/05 3.3） */}
+            <CompareSlots
+              colleges={COLLEGES}
+              slots={slots}
+              canCompare={slots.length >= 2}
+              onPick={browse}
+              onRemove={removeSlot}
+              onClear={clearSlots}
+              onCompare={() => setCompareRequested(true)}
+            />
+
+            {/* ② 浏览位：中间可滚动 */}
+            <div className="min-h-0 flex-1 bg-[#f8f5ed]">
+              {current ? (
+                <SchoolProfile
+                  college={current}
+                  inSlot={slots.includes(current.en)}
+                  slotsFull={slots.length >= 3}
+                  onToggleSlot={() =>
+                    slots.includes(current.en) ? removeSlot(current.en) : addSlot(current.en)
+                  }
+                  onClose={closeBrowse}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+                  <p className="text-sm text-[#68786e]">点地图上的圆点</p>
+                  <p className="text-sm text-[#68786e]">查看院校详情</p>
                 </div>
-
-                <p className="mt-3 text-xs text-[#8b6f45]">
-                  {current.type === "lac" ? "文理学院" : current.pub === 1 ? "公立综合性大学" : "私立综合性大学"}
-                  {" · "}US News 2026 第 {current.rank} 名
-                </p>
-
-                <dl className="mt-4 space-y-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-[#8b6f45]">所在城市与州</dt>
-                    <dd className="mt-0.5">
-                      {current.city}, {current.st}
-                    </dd>
-                    <dd className="mt-0.5 text-xs text-[#68786e]">{current.cz}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-[#8b6f45]">一句话点评</dt>
-                    <dd className="mt-0.5 leading-6">{current.nz}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-[#8b6f45]">录取率（整体）</dt>
-                    <dd className="mt-0.5">{formatField(current.acc, "percent")}</dd>
-                  </div>
-                </dl>
-
-                <p className="mt-5 border-t border-[#d6d2c7] pt-4 text-xs text-[#68786e]">
-                  完整的 15 节档案、加入对比、表格视图、筛选与洞察榜将在后续里程碑接入。
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-                <p className="text-sm text-[#68786e]">点地图上的圆点</p>
-                <p className="text-sm text-[#68786e]">查看院校详情</p>
-              </div>
-            )}
+              )}
+            </div>
           </aside>
         </div>
 
@@ -116,6 +118,13 @@ export default function CollegesPage() {
           <span className="ml-1">数据更新 2026-08-11</span>
         </footer>
       </div>
+      {compareOpen && slotColleges.length >= 2 && (
+    <CompareModal
+      colleges={slotColleges}
+      onClose={() => setCompareRequested(false)}
+      onRemove={removeSlot}
+    />
+  )}
     </main>
   );
 }
