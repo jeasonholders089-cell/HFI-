@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import Explore from "../page";
+import Explore, { CLOUD_FONT_MAX, CLOUD_FONT_MIN, wordFontSize } from "../page";
 
 // 现场全景的版面契约（docs/10 §3.1 / docs/11 §4.2、§4.3）。
 //
@@ -163,6 +163,35 @@ describe("/explore 的版面顺序与口径", () => {
 
       await waitFor(() => expect(screen.queryByText("专注投入")).toBeNull());
       expect(screen.getByRole("button", { name: "生成" })).toBeTruthy();
+    });
+  });
+
+  /**
+   * 词云的字号映射（docs/10 §3.8，2026-09-17 调整）。
+   *
+   * 为什么要测：原来的范围是 18–64，**18px 在 1920 大屏、5 米外基本读不到**，
+   * 而容器很宽、完全放得下更大的字。改动后最小 30、最大 104。
+   * 另外"所有人次相同"时不能假装有高低差——人数真的相同就该一样大。
+   */
+  describe("词云字号", () => {
+    it("人次最低/最高分别对应字号下限/上限", () => {
+      expect(wordFontSize(3, 3, 12)).toBe(CLOUD_FONT_MIN);
+      expect(wordFontSize(12, 3, 12)).toBe(CLOUD_FONT_MAX);
+    });
+
+    it("人次多的字号更大（单调）", () => {
+      const sizes = [3, 5, 7, 9, 11, 12].map((n) => wordFontSize(n, 3, 12));
+      for (let i = 1; i < sizes.length; i++) expect(sizes[i]).toBeGreaterThan(sizes[i - 1]);
+    });
+
+    it("所有人次相同 → 统一字号，不假装有高低差", () => {
+      expect(wordFontSize(9, 9, 9)).toBe(wordFontSize(9, 9, 9));
+      expect(wordFontSize(9, 9, 9)).toBeGreaterThan(CLOUD_FONT_MIN);
+      expect(wordFontSize(9, 9, 9)).toBeLessThan(CLOUD_FONT_MAX);
+    });
+
+    it("字号下限比旧版（18px）明显大 —— 那条改动的全部意义", () => {
+      expect(CLOUD_FONT_MIN).toBeGreaterThanOrEqual(28);
     });
   });
 

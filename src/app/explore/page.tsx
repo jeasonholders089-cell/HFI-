@@ -71,6 +71,23 @@ function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+/** 词云的字号范围与词数上限（2026-09-17 调整，理由见 docs/10 §3.8）。 */
+export const CLOUD_FONT_MIN = 30;
+export const CLOUD_FONT_MAX = 104;
+export const CLOUD_FONT_FLAT = 56;
+export const CLOUD_MAX_WORDS = 12;
+
+/**
+ * 按人次算字号：线性映射到 `CLOUD_FONT_MIN`–`CLOUD_FONT_MAX`；
+ * 所有人次相同时给 `CLOUD_FONT_FLAT`（不假装有高低差——人数真的相同就该一样大）。
+ *
+ * 原来用的是 18–64：**18px 在 1920 大屏、5 米外基本读不到**，而容器很宽、完全放得下更大的字。
+ */
+export function wordFontSize(count: number, min: number, max: number): number {
+  if (max <= min) return CLOUD_FONT_FLAT;
+  return CLOUD_FONT_MIN + ((CLOUD_FONT_MAX - CLOUD_FONT_MIN) * (count - min)) / (max - min);
+}
+
 export default function Explore() {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState("");
@@ -670,7 +687,7 @@ export default function Explore() {
                 </button>
               </div>
               <p className="mt-4 text-sm text-[#607168]">
-                点击生成后，AI 根据这一场孩子的问卷归纳特质、合并近义词，最多显示 9 个词。
+                点击生成后，AI 根据这一场孩子的问卷归纳特质、合并近义词，最多显示 {CLOUD_MAX_WORDS} 个词。
                 字号按对应孩子人数缩放，同一个孩子在同一特质中只计一次。
               </p>
               {cloudLoading && (
@@ -690,7 +707,7 @@ export default function Explore() {
                 </p>
               )}
               <div
-                className="mt-8 flex min-h-48 flex-wrap items-center justify-center gap-x-7 gap-y-4 py-6"
+                className="mt-8 flex min-h-64 flex-wrap items-center justify-center gap-x-10 gap-y-6 py-8"
                 aria-label="儿童特质词频云"
               >
                 {words.map(([t, n], i) => (
@@ -700,11 +717,8 @@ export default function Explore() {
                     aria-label={`${t}，${n} 位孩子`}
                     className="inline-block leading-tight"
                     style={{
-                      fontSize:
-                        minFrequency === maxFrequency
-                          ? 30
-                          : 18 + (46 * (n - minFrequency)) / (maxFrequency - minFrequency),
-                      fontWeight: n === maxFrequency ? 600 : 400,
+                      fontSize: wordFontSize(n, minFrequency, maxFrequency),
+                      fontWeight: n === maxFrequency ? 700 : 400,
                       color: ["#1e4b3b", "#8b6f45", "#507b61", "#a26047"][i % 4],
                     }}
                   >
