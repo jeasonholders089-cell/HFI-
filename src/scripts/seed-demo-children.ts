@@ -21,7 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, gte, lt } from "drizzle-orm";
 
 import { children } from "../db/schema";
 import { getDb } from "../lib/db";
@@ -295,10 +295,13 @@ function main(): void {
 
   // 场次分布小抄：让人能一眼看出大屏会显示什么
   const schoolCount = new Map<string, number>();
-  for (const r of rows) for (const s of r.dreamSchool.split("、")) schoolCount.set(s, (schoolCount.get(s) ?? 0) + 1);
+  for (const r of rows) {
+    for (const s of String(r.dreamSchool).split("、")) schoolCount.set(s, (schoolCount.get(s) ?? 0) + 1);
+  }
   const catCount = new Map<string, number>();
   for (const r of rows) {
-    for (const d of new Set(JSON.parse(r.aiDirections).map((x: { category: string }) => x.category))) {
+    const cats = (JSON.parse(String(r.aiDirections)) as { category: string }[]).map((x) => x.category);
+    for (const d of new Set<string>(cats)) {
       catCount.set(d, (catCount.get(d) ?? 0) + 1);
     }
   }

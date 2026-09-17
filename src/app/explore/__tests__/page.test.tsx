@@ -39,7 +39,12 @@ const SUMMARY = {
 };
 
 function mockFetch(body: unknown = SUMMARY) {
-  const fn = vi.fn(async () => ({ ok: true, status: 200, json: async () => body }) as unknown as Response);
+  // 声明出入参，测试才能断言"请求的是哪个 URL"（`fn.mock.calls[0][0]`）
+  // 形参只为让 `mock.calls` 带上类型（测试要断言请求的 URL）；函数体里不用它们
+  const fn = vi.fn(async (..._args: [string, RequestInit?]) => {
+    void _args;
+    return { ok: true, status: 200, json: async () => body } as unknown as Response;
+  });
   vi.stubGlobal("fetch", fn);
   return fn;
 }
