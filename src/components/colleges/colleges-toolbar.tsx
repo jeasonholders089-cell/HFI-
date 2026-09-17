@@ -15,6 +15,8 @@ import { MATCH_DISCLAIMER, MATCH_LABEL, MATCH_ORDER } from "@/lib/colleges-match
 
 /** 工具栏五行（docs/06 第三节）。图例从地图左下角搬到这里（docs/05 3.2）。 */
 type Props = {
+  view: "map" | "table";
+  onView: (v: "map" | "table") => void;
   all: readonly College[];
   filters: Filters;
   insight: InsightKey | null;
@@ -56,6 +58,8 @@ const select =
   "rounded-lg border border-[#d6d2c7] bg-white px-2.5 py-2 text-[13px] text-[#17382f] outline-none focus:border-[#8b6f45]";
 
 export function CollegesToolbar({
+  view,
+  onView,
   all,
   filters,
   insight,
@@ -83,15 +87,19 @@ export function CollegesToolbar({
       {/* 第 1 行：视图切换（表格视图在 M5 接入，这里先置灰占位）+ 搜索 */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-[#d6d2c7] bg-white">
-          <span className="bg-[#8b6f45] px-4 py-2 text-[13px] font-medium text-white">地图视图</span>
-          <button
-            type="button"
-            disabled
-            title="表格视图在 M5 接入"
-            className="cursor-not-allowed px-4 py-2 text-[13px] text-[#9aa59c]"
-          >
-            表格视图
-          </button>
+          {(["map", "table"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              aria-pressed={view === v}
+              className={`px-4 py-2 text-[13px] ${
+                view === v ? "bg-[#8b6f45] font-medium text-white" : "text-[#50645b]"
+              }`}
+            >
+              {v === "map" ? "地图视图" : "表格视图"}
+            </button>
+          ))}
         </div>
 
         <div className="relative">

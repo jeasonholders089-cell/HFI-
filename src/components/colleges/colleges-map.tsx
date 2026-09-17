@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import type { College } from "@/lib/colleges-data";
 import {
@@ -74,7 +74,13 @@ type Props = {
   onSelect: (en: string) => void;
 };
 
-export function CollegesMap({ colleges, selected, slots, matchTags, onSelect }: Props) {
+/** 对外暴露的能力：把某个院校定位到视口中心（表格行点击用，docs/08 §6.9 E4）。 */
+export type CollegesMapHandle = { focusOn: (en: string) => void };
+
+export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function CollegesMap(
+  { colleges, selected, slots, matchTags, onSelect },
+  ref,
+) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [vb, setVb] = useState<ViewBox>({ ...HOME_VIEW });
   const [hovered, setHovered] = useState<string | null>(null);
@@ -88,6 +94,25 @@ export function CollegesMap({ colleges, selected, slots, matchTags, onSelect }: 
 
   const k = zoomScale(vb);
   const slotSet = useMemo(() => new Set(slots), [slots]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      /** 保持当前缩放级别，只改视口位置；改完过边界钳制。 */
+      focusOn(en: string) {
+        const c = colleges.find((x) => x.en === en);
+        if (!c) return;
+        setVb((prev) =>
+          clampView({
+            ...prev,
+            x: c.x - prev.w / 2,
+            y: c.y - prev.h / 2,
+          }),
+        );
+      },
+    }),
+    [colleges],
+  );
 
   /** 只把过滤结果的 x/y 传进拾取 —— 被筛掉的点不能被选中（docs/08 §6.2）。 */
   const candidates = useMemo(
@@ -328,6 +353,6 @@ export function CollegesMap({ colleges, selected, slots, matchTags, onSelect }: 
       </div>
     </div>
   );
-}
+});
 
 export { MAP_VIEWBOX };

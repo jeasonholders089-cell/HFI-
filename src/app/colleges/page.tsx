@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 
 import { CompareModal } from "@/components/colleges/compare-modal";
 import { CompareSlots } from "@/components/colleges/compare-slots";
-import { CollegesMap } from "@/components/colleges/colleges-map";
+import { CollegesMap, type CollegesMapHandle } from "@/components/colleges/colleges-map";
 import { CollegesToolbar } from "@/components/colleges/colleges-toolbar";
+import { CollegesTable } from "@/components/colleges/colleges-table";
 import { MatchModal } from "@/components/colleges/match-modal";
 import { SchoolProfile } from "@/components/colleges/school-profile";
 import { SiteNav } from "@/components/site-nav";
@@ -33,6 +34,8 @@ export default function CollegesPage() {
   const [slotState, dispatch] = useReducer(slotReducer, undefined, initialSlotState);
   const { browsing: selected, slots } = slotState;
   const [compareRequested, setCompareRequested] = useState(false);
+  const [view, setView] = useState<"map" | "table">("map");
+  const mapRef = useRef<CollegesMapHandle | null>(null);
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [insight, setInsight] = useState<InsightKey | null>(null);
@@ -89,6 +92,14 @@ export default function CollegesPage() {
 
   const toggleFav = (en: string) => toggleFavPref(en);
 
+  /** E4：点表格行 → 切回地图 → 把该点移到视口中心 → 浏览位打开它。 */
+  const openFromTable = useCallback((en: string) => {
+    setView("map");
+    browse(en);
+    // 视口居中放在下一帧，避免与视图切换同批渲染
+    requestAnimationFrame(() => mapRef.current?.focusOn(en));
+  }, [browse]);
+
   const resetAll = () => {
     setFilters(EMPTY_FILTERS);
     setInsight(null);
@@ -111,6 +122,8 @@ export default function CollegesPage() {
         </div>
 
         <CollegesToolbar
+          view={view}
+          onView={setView}
           all={COLLEGES}
           filters={filters}
           insight={insight}
@@ -130,28 +143,41 @@ export default function CollegesPage() {
 
         {/* 地图区与详情栏：固定比例，不做拖拽（docs/05 3.5） */}
         <div className="grid gap-5 lg:grid-cols-[62fr_38fr]">
-          <section className="h-[58vh] min-h-[380px] overflow-hidden rounded-xl border border-[#d6d2c7]">
-            {visible.length ? (
-              <CollegesMap
+          {view === "map" ? (
+            <section className="h-[58vh] min-h-[380px] overflow-hidden rounded-xl border border-[#d6d2c7]">
+              {visible.length ? (
+                <CollegesMap
+                  ref={mapRef}
+                  colleges={visible}
+                  selected={selected}
+                  slots={slots}
+                  matchTags={matchTags}
+                  onSelect={browse}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#e8e6dc]">
+                  <p className="text-sm text-[#50645b]">没有符合条件的学校</p>
+                  <button
+                    type="button"
+                    onClick={resetAll}
+                    className="rounded-lg border border-[#8b6f45] px-4 py-2 text-sm text-[#8b6f45]"
+                  >
+                    清除筛选
+                  </button>
+                </div>
+              )}
+            </section>
+          ) : (
+            <section>
+              <CollegesTable
                 colleges={visible}
-                selected={selected}
-                slots={slots}
-                matchTags={matchTags}
-                onSelect={browse}
+                favs={favs}
+                onToggleFav={toggleFav}
+                onOpenDetail={openFromTable}
+                onRowClick={openFromTable}
               />
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#e8e6dc]">
-                <p className="text-sm text-[#50645b]">没有符合条件的学校</p>
-                <button
-                  type="button"
-                  onClick={resetAll}
-                  className="rounded-lg border border-[#8b6f45] px-4 py-2 text-sm text-[#8b6f45]"
-                >
-                  清除筛选
-                </button>
-              </div>
-            )}
-          </section>
+            </section>
+          )}
 
           <aside className="flex min-h-[380px] flex-col overflow-hidden rounded-xl border border-[#d6d2c7]">
             {/* ① 对比位：顶部常驻 */}
