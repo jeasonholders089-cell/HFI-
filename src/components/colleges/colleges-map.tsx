@@ -22,6 +22,7 @@ import {
   type ViewBox,
 } from "@/lib/colleges-project";
 import { STATE_PATHS } from "@/lib/us-map-paths";
+import { MATCH_LABEL, type MatchTag } from "@/lib/colleges-match";
 
 /** 州的缩写 → 中文名，用于州名标注。 */
 const STATE_ZH: Record<string, string> = {
@@ -68,10 +69,12 @@ type Props = {
   colleges: readonly College[];
   selected: string | null;
   slots: readonly string[];
+  /** 黑马匹配的档位映射；开启后地图上的悬停提示会带档位（H3 的三处同步之一） */
+  matchTags?: ReadonlyMap<string, string | null> | null;
   onSelect: (en: string) => void;
 };
 
-export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
+export function CollegesMap({ colleges, selected, slots, matchTags, onSelect }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [vb, setVb] = useState<ViewBox>({ ...HOME_VIEW });
   const [hovered, setHovered] = useState<string | null>(null);
@@ -311,6 +314,11 @@ export function CollegesMap({ colleges, selected, slots, onSelect }: Props) {
             {hoveredCollege.type === "lac" ? "文理" : hoveredCollege.pub === 1 ? "公立" : "私立"} · 第{" "}
             {hoveredCollege.rank} 名
           </span>
+          {matchTags?.get(hoveredCollege.en) ? (
+            <span className="ml-2 rounded bg-[#f5ecdf] px-1.5 py-0.5 text-[10px] text-[#8b6f45]">
+              {MATCH_LABEL[matchTags.get(hoveredCollege.en) as MatchTag]}
+            </span>
+          ) : null}
         </div>
       )}
 

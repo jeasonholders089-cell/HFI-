@@ -17,7 +17,13 @@ type Props = {
   college: College;
   inSlot: boolean;
   slotsFull: boolean;
+  isFav: boolean;
+  /** 黑马匹配的档位标签；未开启匹配时为 null */
+  matchLabel: string | null;
+  /** 悬停徽标可见的判断依据 */
+  matchWhyText: string | null;
   onToggleSlot: () => void;
+  onToggleFav: () => void;
   onClose: () => void;
 };
 
@@ -44,7 +50,17 @@ function Cell({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export function SchoolProfile({ college: c, inSlot, slotsFull, onToggleSlot, onClose }: Props) {
+export function SchoolProfile({
+  college: c,
+  inSlot,
+  slotsFull,
+  isFav,
+  matchLabel,
+  matchWhyText,
+  onToggleSlot,
+  onToggleFav,
+  onClose,
+}: Props) {
   const signals = visibleSignals(c);
   const essays = JSON.parse(c.essays) as { t: string; w: string }[];
 
@@ -56,14 +72,30 @@ export function SchoolProfile({ college: c, inSlot, slotsFull, onToggleSlot, onC
             <h2 className="text-xl leading-tight">{c.zh}</h2>
             <p className="mt-1 text-xs text-white/70">{c.en}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="h-7 w-7 shrink-0 rounded-md bg-white/15 text-sm text-white/80 hover:bg-white/25"
-          >
-            ✕
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {matchLabel && (
+              <span className="rounded bg-white/15 px-2 py-1 text-[11px] text-white/90">{matchLabel}</span>
+            )}
+            <button
+              type="button"
+              onClick={onToggleFav}
+              aria-label={isFav ? "取消收藏" : "收藏"}
+              aria-pressed={isFav}
+              className={`h-7 w-7 rounded-md text-sm ${
+                isFav ? "bg-[#8b6f45] text-white" : "bg-white/15 text-white/80 hover:bg-white/25"
+              }`}
+            >
+              {isFav ? "★" : "☆"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="关闭"
+              className="h-7 w-7 rounded-md bg-white/15 text-sm text-white/80 hover:bg-white/25"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       </header>
 
@@ -73,6 +105,17 @@ export function SchoolProfile({ college: c, inSlot, slotsFull, onToggleSlot, onC
             <Cell label="US News 2026（全美）" value={`#${c.rank} · ${c.type === "uni" ? "综合大学榜" : "文理学院榜"}`} />
             <Cell label="QS 世界大学排名 2026" value={c.qs ? `#${c.qs}` : c.type === "lac" ? "文理学院不参与主榜" : "未上榜"} />
           </div>
+          {/* H4：档位徽标悬停可见判断依据 */}
+          {matchLabel && matchWhyText && (
+            <div className="mt-2">
+              <span
+                title={matchWhyText}
+                className="cursor-help rounded bg-[#f5ecdf] px-2 py-1 text-[11px] font-medium text-[#8b6f45]"
+              >
+                初步区间：{matchLabel}
+              </span>
+            </div>
+          )}
         </Section>
 
         <Section n={2} title="所在城市与州">
