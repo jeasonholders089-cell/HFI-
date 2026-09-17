@@ -230,27 +230,44 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 8 �
 - 应用骨架跑通：Next.js App Router + Postgres + Drizzle 版本化迁移（4 个迁移）
 - 家长自助填写 `/register`（单页八字段，含幂等提交与字段校验）
 - 首页 `/`：两条路径入口 + 实时摘要 + 批量录入（Excel / 文本）+ 问卷二维码 + AI 试用框
-- 现场全景 `/explore`：方向统计、特质词云、逐条 AI 分析（带进度与失败记录）、数据清空
+- 现场全景 `/explore`：梦想院校地图（第一屏）、八类方向统计、梦想院校名单、特质词云、
+  逐条 AI 分析（带进度与失败记录）、数据清空
 - AI 接入：走平台代理，模型 `anthropic/claude-haiku-4-5`，8 类方向分类
+- 院校坐标表：College Scorecard 的 4 年制主校区 2468 所（`data/university-coords.csv`
+  → `lib/university-coords.ts`），四级匹配（别名 / 精确 / 唯一包含 / 人工覆盖）在服务端跑
 - 8 个数据接口
 
 **进行中**
 
-- 选校地图的现场走查（`docs/09` 第 7.5 节十二条）：室内可自动化的部分已完成，
-  剩下 375px 手机、Slow 3G、大屏与 8 小时长跑需要在真机上人工过一遍
+- **真机目视**（选校地图 `docs/09` §7.5 十二条 + 现场全景改版 `docs/09` §10.3）：
+  室内可自动化的部分都已完成，剩下 375px 手机、Slow 3G / 断网、1920 大屏、8 小时长跑
+  需要在真机上人工过一遍
+- **活动前用一次真实 AI 调用确认 8 类分类**（本机平台代理不可达，`docs/09` §10.2 第 9/10 条）
 
 **未开始**
 
 - `/entry` 工作人员单条访谈录入
 - `/child/[token]` 孩子成长画像（产品的价值交付页）
 - `/register/success` 提交成功页
-- 现场全景第一屏的梦想院校地图（坐标表与匹配管线已就绪，见 `docs/10` / `docs/11`）
+
+**现场全景改版已完成的部分（按里程碑，见 `docs/10` / `docs/11` / `docs/09` §10）**
+
+- M1 坐标表：`scripts/extract-university-coords.ts` / `build-coords.ts` 四道闸、
+  `data/university-coords.csv`（2468 所）→ `lib/university-coords.ts`、
+  `lib/school-locate.ts`（四级匹配 + 唯一性闸），测试 20 条，别名表 **69/69** 命中
+- M2 地图：底图三层抽成 `components/map/us-base-layers.tsx`（选校地图零回归）、
+  `components/explore/dream-school-map.tsx`（人次气泡 + 前 8 名标签 + `<title>` 悬停）、
+  投影搬到 `lib/map-project.ts`、`/api/children/summary` 新增 `dreamSchools`（服务端匹配）
+- M3 分类：4 类 → 8 类，三处 prompt 同源（`CATEGORY_ENUM` / `CATEGORY_RULES`），
+  老数据走页面上已有的「AI 补全分类」，不做静默迁移
+- M4 页面：第一屏改成梦想院校地图，方向统计与名单各自全行，工作人员按钮收进标题行
+- M5 收尾：空态与异常态、响应式（< 640px 地图 42vh）、联调记录
 
 **选校地图已完成的部分（按里程碑）**
 
 - M1 数据管道：`scripts/extract-colleges.ts` / `build-us-map.ts` / `build-colleges.ts`，
   四道闸校验，`data/colleges.csv`（113 × 46）→ `lib/colleges-data.ts`
-- M2 地图：底图三层（海洋渐变 / 邻国陆地 / 美国本土 49 州 + 阿拉斯加与夏威夷插图，
+- M2 地图：底图三层（海洋平涂 / 邻国陆地 / 美国本土 49 州 + 阿拉斯加与夏威夷插图，
   美国这一层带投影）、113 个圆点、四类标注、缩放平移（含捏合与双击）、
   最近点拾取、点位散开、标签避让、州悬停高亮
 - M3 详情与对比：15 节档案、三格对比位状态机、对比浮窗（23 行 / 8 行高亮）

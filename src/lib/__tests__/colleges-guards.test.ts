@@ -31,14 +31,25 @@ const COLLEGE_FILES = [
   ...walk(path.join(SRC, "components", "colleges")),
 ];
 
+/**
+ * 现场全景也在这三条守卫的射程内（docs/11 §6.5 第 9 条）：
+ * 它同样是公开页面，同样不许出现导流话术、外链与远程字体 ——
+ * 梦想院校地图改成复用底图之后，这两个页面共享同一批组件，走查口径也该一致。
+ */
+const EXPLORE_FILES = [
+  ...walk(path.join(SRC, "app", "explore")),
+  ...walk(path.join(SRC, "components", "explore")),
+  ...walk(path.join(SRC, "components", "map")),
+];
+
 function read(p: string): string {
   return fs.readFileSync(p, "utf8");
 }
 
 describe("选校地图的跨文件守卫", () => {
-  it("页面源码不含第三方导流话术（§7.6 第 7 条）", () => {
+  it("页面源码不含第三方导流话术（§7.6 第 7 条，含现场全景）", () => {
     const banned = ["小助手", "顾问", "私信", "定位报告", "CMC", "师说留学"];
-    for (const f of COLLEGE_FILES) {
+    for (const f of [...COLLEGE_FILES, ...EXPLORE_FILES]) {
       const s = read(f);
       for (const b of banned) {
         expect(s.includes(b), `${path.basename(f)} 含「${b}」`).toBe(false);
@@ -46,13 +57,22 @@ describe("选校地图的跨文件守卫", () => {
     }
   });
 
-  it("零外部依赖：没有 <img>、没有外链资源、没有远程字体（§7.4 第 9 条）", () => {
-    for (const f of COLLEGE_FILES) {
+  it("零外部依赖：没有 <img>、没有外链资源、没有远程字体（§7.4 第 9 条，含现场全景）", () => {
+    for (const f of [...COLLEGE_FILES, ...EXPLORE_FILES]) {
       const s = read(f);
       expect(/<img\b/.test(s), `${path.basename(f)} 用了 <img>`).toBe(false);
       expect(/src=["']https?:\/\//.test(s), `${path.basename(f)} 有外链 src`).toBe(false);
       expect(/href=["']https?:\/\//.test(s), `${path.basename(f)} 有外链 href`).toBe(false);
       expect(/@font-face|fonts\.googleapis/.test(s), `${path.basename(f)} 引了远程字体`).toBe(false);
+    }
+  });
+
+  it("现场全景不出现「冲 / 稳 / 保」话术（AGENTS.md 第五节的唯一例外只在 /colleges）", () => {
+    for (const f of [...EXPLORE_FILES, path.join(SRC, "app", "explore", "page.tsx")]) {
+      const s = read(f);
+      for (const b of ["冲刺", "保底", "偏冲", "较稳"]) {
+        expect(s.includes(b), `${path.basename(f)} 含「${b}」`).toBe(false);
+      }
     }
   });
 

@@ -79,6 +79,23 @@ describe("/explore 的版面顺序与口径", () => {
     expect(section.textContent).not.toContain("社会科学");
     expect(section.textContent).not.toContain("艺术科学");
     expect(section.textContent).toContain("固定八类");
+
+    // 条形长度分母是已分类人数（2）：2 人 → 100%，1 人 → 50%
+    const bars = [...section.querySelectorAll("div.h-1 > div")].map((d) => d.getAttribute("style"));
+    expect(bars.some((s) => s?.includes("width: 100%"))).toBe(true);
+    expect(bars.some((s) => s?.includes("width: 50%"))).toBe(true);
+  });
+
+  it("1 人的类别不会显示成「长度为 0 却有人」（最小宽度 2%）", async () => {
+    mockFetch({
+      ...SUMMARY,
+      classified: 200,
+      directions: { ...SUMMARY.directions, 人文科学: 1 },
+    });
+    render(<Explore />);
+    const section = (await screen.findByText("发展方向统计")).closest("section") as HTMLElement;
+    const bars = [...section.querySelectorAll("div.h-1 > div")].map((d) => d.getAttribute("style"));
+    expect(bars.some((s) => s?.includes("width: 2%"))).toBe(true);
   });
 
   it("地图数量对不上时，图下写出「另有 N 人次未收录坐标」", async () => {
