@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useLang, useT } from "@/components/colleges/colleges-context";
 import type { College } from "@/lib/colleges-data";
@@ -46,21 +46,21 @@ type Props = {
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-dashed border-[#d6d2c7] px-5 py-4 first:border-t-0">
-      <h3 className="flex items-baseline gap-2 text-sm font-medium text-[#17382f]">
+    <section className="border-t border-dashed border-[#d6d2c7] px-4 py-3 first:border-t-0">
+      <h3 className="flex items-baseline gap-2 text-[0.8125rem] font-medium text-[#17382f]">
         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-[#f0e6d8] px-1 text-[0.6875rem] font-bold text-[#8b6f45]">
           {n}
         </span>
         {title}
       </h3>
-      <div className="mt-2 text-sm leading-6 text-[#17382f]">{children}</div>
+      <div className="mt-2 text-[0.8125rem] leading-5 text-[#17382f]">{children}</div>
     </section>
   );
 }
 
 function Cell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-[#f2ede4] px-3 py-2">
+    <div className="rounded-lg bg-[#f2ede4] px-2.5 py-1.5">
       <div className="text-[0.6875rem] text-[#68786e]">{label}</div>
       <div className="mt-0.5 font-medium">{value}</div>
     </div>
@@ -100,11 +100,13 @@ export function SchoolProfile({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-[#d6d2c7] bg-[#17382f] px-5 py-4 text-white">
+      <header className="border-b border-[#d6d2c7] bg-[#17382f] px-5 py-3 text-white">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl leading-tight">{nameOf(c, lang)}</h2>
-            {subNameOf(c, lang) && <p className="mt-1 text-xs text-white/70">{subNameOf(c, lang)}</p>}
+            <h2 className="text-lg leading-tight">{nameOf(c, lang)}</h2>
+            {subNameOf(c, lang) && (
+              <p className="mt-0.5 text-[0.6875rem] text-white/70">{subNameOf(c, lang)}</p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {matchLabel && (
@@ -248,7 +250,7 @@ export function SchoolProfile({
                   {idefName(c.idef_c, lang)}
                 </span>
               </div>
-              <p className="mt-1.5 text-[0.8125rem] leading-6 text-[#50645b]">{c.idef_t}</p>
+              <p className="mt-1.5 text-[0.8125rem] leading-5 text-[#50645b]">{c.idef_t}</p>
               <ZhOnlyNote />
               {c.idef_src && (
                 <p className="mt-1 text-[0.625rem] text-[#9aa59c]">{t("data.srcNote", { url: c.idef_src })}</p>
@@ -286,7 +288,7 @@ export function SchoolProfile({
           </div>
           {c.ivw_t ? (
             <>
-              <p className="mt-2 text-[0.8125rem] leading-6 text-[#50645b]">{c.ivw_t}</p>
+              <p className="mt-2 text-[0.8125rem] leading-5 text-[#50645b]">{c.ivw_t}</p>
               <ZhOnlyNote />
               {c.ivw_src && (
                 <p className="mt-1 text-[0.625rem] text-[#9aa59c]">{t("data.srcNote", { url: c.ivw_src })}</p>
@@ -300,7 +302,7 @@ export function SchoolProfile({
             <>
               <ul className="space-y-2">
                 {essays.map((e, i) => (
-                  <li key={i} className="rounded-lg bg-[#f2ede4] px-3 py-2 text-[0.8125rem] leading-6">
+                  <li key={i} className="rounded-lg bg-[#f2ede4] px-3 py-2 text-[0.8125rem] leading-5">
                     {e.t}
                     <span className="ml-2 rounded bg-white px-1.5 py-0.5 text-[0.625rem] text-[#8b6f45]">
                       {e.w}
@@ -328,7 +330,7 @@ export function SchoolProfile({
         </Section>
 
         <Section n={14} title={t("sec.14")}>
-          <p className="text-[0.8125rem] leading-6">{pair(c.nz, c.ne, lang)}</p>
+          <p className="text-[0.8125rem] leading-5">{pair(c.nz, c.ne, lang)}</p>
         </Section>
 
         {signals.length > 0 && (
@@ -336,7 +338,7 @@ export function SchoolProfile({
             <p className="mb-2 text-[0.6875rem] text-[#68786e]">{t("sig.head")}</p>
             <ul className="space-y-1.5">
               {signals.map((s) => (
-                <li key={s.key} className="rounded-lg bg-[#f2ede4] px-3 py-2 text-[0.8125rem] leading-6">
+                <li key={s.key} className="rounded-lg bg-[#f2ede4] px-3 py-2 text-[0.8125rem] leading-5">
                   {s.text}
                 </li>
               ))}
@@ -358,7 +360,7 @@ export function SchoolProfile({
           onClick={onToggleSlot}
           disabled={!inSlot && slotsFull}
           aria-disabled={!inSlot && slotsFull}
-          className={`w-full rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`w-full rounded-lg border px-4 py-2 text-[0.8125rem] font-medium transition-colors ${
             inSlot
               ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]"
               : slotsFull

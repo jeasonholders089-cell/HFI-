@@ -10,8 +10,10 @@ export default defineConfig({
     alias: { "@": HERE },
   },
   test: {
-    // 组件测试需要 DOM 与 localStorage
-    environment: "jsdom",
+    // 默认 node：lib/ 下的纯函数测试不需要 DOM。
+    // 需要的组件测试（*.test.tsx）在文件顶部用 `// @vitest-environment jsdom` 单独声明 ——
+    // 给每个纯函数测试都建一次 jsdom 会白吃两三百 MB 内存（实测会 OOM）。
+    environment: "node",
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["node_modules/**", ".next/**"],
     // 显式 import describe/it/expect，不用 vitest/globals ——

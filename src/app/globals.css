@@ -48,6 +48,9 @@
   --map-ocean:#e8e6dc;
   --map-land:#fdfcf8;
   --map-land-line:#c9cfc6;
+  /* 州悬停高亮：直接复用色板里的 --palette-28，不引入新色相 */
+  --map-land-hover:#e6e0d5;
+  --map-land-hover-line:#8b6f45;
   --map-glow:#7a6a52;
 }
 @theme inline{--color-background:var(--background);--color-foreground:var(--foreground);--font-sans:var(--font-geist-sans);--font-mono:var(--font-geist-mono)}

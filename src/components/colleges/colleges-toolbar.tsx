@@ -158,8 +158,29 @@ export function CollegesToolbar({
             </ul>
           )}
         </div>
+
+        {/* 图例（A9）——放在第一行右侧，把第二行让给筛选器 + 收藏 + 匹配 */}
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-[0.6875rem] text-[#68786e]">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--dot-uni)" }} />
+            {t("toolbar.legendUni")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: "var(--dot-pub)", background: "white" }} />
+            {t("toolbar.legendPub")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5" style={{ background: "var(--dot-lac)", transform: "rotate(45deg)" }} />
+            {t("toolbar.legendLac")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rotate-45 bg-[#68786e]" />
+            {t("toolbar.legendCity")}
+          </span>
+        </div>
       </div>
 
+      {/* 第二行：筛选器 + 我的收藏 + SAT 初步区间 + 导出 + 清除筛选，同一行内自动换行 */}
       <div className="flex flex-wrap items-center gap-2">
         <select aria-label={t("toolbar.typeAll")} value={filters.type} onChange={(e) => onFilters({ type: e.target.value })} className={select}>
           <option value="">{t("toolbar.typeAll")}</option>
@@ -196,33 +217,11 @@ export function CollegesToolbar({
           ))}
         </select>
 
-        {/* 图例（A9）——形状与地图一致：实心 / 空心 / 菱形 */}
-        <div className="ml-auto flex flex-wrap items-center gap-3 text-[0.6875rem] text-[#68786e]">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--dot-uni)" }} />
-            {t("toolbar.legendUni")}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: "var(--dot-pub)", background: "white" }} />
-            {t("toolbar.legendPub")}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5" style={{ background: "var(--dot-lac)", transform: "rotate(45deg)" }} />
-            {t("toolbar.legendLac")}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rotate-45 bg-[#68786e]" />
-            {t("toolbar.legendCity")}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onToggleFavOnly}
           aria-pressed={favOnly}
-          className={`rounded-lg border px-3 py-1.5 text-[0.75rem] ${
+          className={`rounded-lg border px-2.5 py-2 text-[0.75rem] ${
             favOnly ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#d6d2c7] bg-white text-[#50645b]"
           }`}
         >
@@ -232,7 +231,7 @@ export function CollegesToolbar({
           <button
             type="button"
             onClick={onExport}
-            className="rounded-lg border border-[#8b6f45] bg-white px-3 py-1.5 text-[0.75rem] text-[#8b6f45]"
+            className="rounded-lg border border-[#8b6f45] bg-white px-2.5 py-2 text-[0.75rem] text-[#8b6f45]"
           >
             {t("exp.button")}
           </button>
@@ -240,7 +239,7 @@ export function CollegesToolbar({
         <button
           type="button"
           onClick={onOpenMatch}
-          className={`rounded-lg border px-3 py-1.5 text-[0.75rem] ${
+          className={`rounded-lg border px-2.5 py-2 text-[0.75rem] ${
             userSat != null ? "border-[#8b6f45] bg-[#f5ecdf] text-[#8b6f45]" : "border-[#d6d2c7] bg-white text-[#50645b]"
           }`}
         >
@@ -250,7 +249,7 @@ export function CollegesToolbar({
           <button
             type="button"
             onClick={onReset}
-            className="rounded-lg border border-[#a26047] bg-white px-3 py-1.5 text-[0.75rem] text-[#a26047]"
+            className="rounded-lg border border-[#a26047] bg-white px-2.5 py-2 text-[0.75rem] text-[#a26047]"
           >
             {t("toolbar.reset")}
           </button>

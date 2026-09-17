@@ -69,6 +69,14 @@ const DOT_FILL: Record<College["typeKey"], string> = {
 
 const HOVER_DELAY_MS = 120;
 const TIP_MS = 3000;
+/**
+ * 判定「这是一次拖拽」的最小位移（屏幕像素）。
+ *
+ * 原来是 2px —— 触控板或鼠标按下去时手抖 2-3px 就会被判成拖拽，
+ * 于是 `pointerup` 直接 return，**点圆点没有任何反应**。
+ * 提到 6px：正常点击不会跨过它，真要拖地图也不会因为多走 4px 而变迟钝。
+ */
+const DRAG_MIN_PX = 6;
 
 /** 只读的布尔外部存储（提示是否看过 / 是否触屏）。 */
 function subscribeStatic(): () => void {
@@ -88,14 +96,20 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
   const [dismissedTips, setDismissedTips] = useState(false);
   /** 容器渲染宽度 —— 散开与拾取阈值都要把屏幕像素换算成视口单位 */
   const [boxW, setBoxW] = useState(0);
+  /** 鼠标悬停在哪一个州（§6.4 的位置反馈） */
+  const [hoverState, setHoverState] = useState<string | null>(null);
 
-  const drag = useRef<{ active: boolean; px: number; py: number; moved: boolean; id: number | null }>({
-    active: false,
-    px: 0,
-    py: 0,
-    moved: false,
-    id: null,
-  });
+  const drag = useRef<{
+    active: boolean;
+    /** 按下时的屏幕坐标（判定"是不是拖拽"用它，不用增量） */
+    sx: number;
+    sy: number;
+    /** 上一次用于算增量的屏幕坐标 */
+    px: number;
+    py: number;
+    moved: boolean;
+    id: number | null;
+  }>({ active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null });
   const pinch = useRef<{ pts: Map<number, { x: number; y: number }>; dist: number }>({
     pts: new Map(),
     dist: 0,
@@ -219,10 +233,18 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     svg.setPointerCapture(e.pointerId);
     pinch.current.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch.current.pts.size === 1) {
-      drag.current = { active: true, px: e.clientX, py: e.clientY, moved: false, id: e.pointerId };
+      drag.current = {
+        active: true,
+        sx: e.clientX,
+        sy: e.clientY,
+        px: e.clientX,
+        py: e.clientY,
+        moved: false,
+        id: e.pointerId,
+      };
     } else {
       // 第二指落下 → 进入捏合，取消平移
-      drag.current = { active: false, px: 0, py: 0, moved: true, id: null };
+      drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: true, id: null };
       const [a, b] = [...pinch.current.pts.values()];
       pinch.current.dist = Math.hypot(a.x - b.x, a.y - b.y);
     }
@@ -250,20 +272,25 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     }
 
     if (drag.current.active && drag.current.id === e.pointerId) {
-      const dxPx = e.clientX - drag.current.px;
-      const dyPx = e.clientY - drag.current.py;
-      if (Math.abs(dxPx) > 2 || Math.abs(dyPx) > 2) drag.current.moved = true;
-      if (drag.current.moved) {
-        // 屏幕位移 → 视口位移（方向相反：拖地图往右，视口往左）
-        const dvx = (dxPx / rect.width) * vb.w;
-        const dvy = (dyPx / rect.height) * vb.h;
-        setVb((prev) => clampView({ ...prev, x: prev.x - dvx, y: prev.y - dvy }));
+      if (!drag.current.moved) {
+        // 用「按下点 → 当前点」的总位移判定，而不是逐帧增量
+        const far = Math.hypot(e.clientX - drag.current.sx, e.clientY - drag.current.sy) > DRAG_MIN_PX;
+        if (!far) return;
+        drag.current.moved = true;
+        // 刚跨过阈值：把增量基准挪到当前位置，避免视口"跳一下"
         drag.current.px = e.clientX;
         drag.current.py = e.clientY;
-        // 本次指针序列发生过平移 → 立即隐藏悬停提示（A7）
-        if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
-        setTip(null);
+        return;
       }
+      // 屏幕位移 → 视口位移（方向相反：拖地图往右，视口往左）
+      const dvx = ((e.clientX - drag.current.px) / rect.width) * vb.w;
+      const dvy = ((e.clientY - drag.current.py) / rect.height) * vb.h;
+      setVb((prev) => clampView({ ...prev, x: prev.x - dvx, y: prev.y - dvy }));
+      drag.current.px = e.clientX;
+      drag.current.py = e.clientY;
+      // 本次指针序列发生过平移 → 立即隐藏悬停提示（A7）
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+      setTip(null);
       return;
     }
 
@@ -283,12 +310,15 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
 
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const moved = drag.current.moved || pinch.current.pts.size >= 2;
+    const startX = drag.current.sx;
+    const startY = drag.current.sy;
     pinch.current.pts.delete(e.pointerId);
     if (pinch.current.pts.size < 2) pinch.current.dist = 0;
-    drag.current = { active: false, px: 0, py: 0, moved: false, id: null };
+    drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null };
     if (moved) return;
 
-    const hit = hitAt(e.clientX, e.clientY);
+    // 松手位置命中就够；命不中时退回按下位置再试一次（手指/光标抬起的瞬间会挪一点）
+    const hit = hitAt(e.clientX, e.clientY) ?? hitAt(startX, startY);
     if (hit) onSelect(hit.en);
   };
 
@@ -359,19 +389,21 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
           setTip(null);
           pinch.current.pts.clear();
-          drag.current = { active: false, px: 0, py: 0, moved: false, id: null };
+          drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null };
         }}
       >
-        {/* 州界 */}
+        {/* 州界：鼠标悬停时该州提亮（给"我在看哪个州"的位置反馈） */}
         <g>
           {STATE_PATHS.map((s) => (
             <path
               key={s.st}
               d={s.d}
-              fill="var(--map-land)"
-              stroke="var(--map-land-line)"
-              strokeWidth={0.8 / Math.max(1, k ** 0.5)}
+              fill={hoverState === s.st ? "var(--map-land-hover)" : "var(--map-land)"}
+              stroke={hoverState === s.st ? "var(--map-land-hover-line)" : "var(--map-land-line)"}
+              strokeWidth={(hoverState === s.st ? 1.2 : 0.8) / Math.max(1, k ** 0.5)}
               strokeLinejoin="round"
+              onPointerEnter={() => setHoverState(s.st)}
+              onPointerLeave={() => setHoverState((cur) => (cur === s.st ? null : cur))}
             />
           ))}
         </g>

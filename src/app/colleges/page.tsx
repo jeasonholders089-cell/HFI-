@@ -348,8 +348,13 @@ function CollegesView() {
             </section>
           )}
 
-          {/* min-h 只在 lg 以上生效：手机上如果留着 380px 最小高度，收起时会变成一大块空白压在页面底部 */}
-          <aside className="flex flex-col overflow-hidden rounded-xl border border-[#d6d2c7] lg:min-h-[380px] max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:max-h-[78vh] max-lg:rounded-b-none">
+          {/*
+            详情栏与地图**同高同底**：地图是 `h-[58vh]`，这里也钉死同一组值，
+            否则 grid 会把整行拉到最高的一列，两栏下沿对不齐。
+            滚动只发生在详情栏内部（下面那个 flex-1 overflow-auto），页面本身不跟着长。
+            min-h 只在 lg 以上生效：手机上留着 380px 最小高度，收起时会变成一大块空白。
+          */}
+          <aside className="flex flex-col overflow-hidden rounded-xl border border-[#d6d2c7] lg:h-[58vh] lg:min-h-[380px] max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:max-h-[78vh] max-lg:rounded-b-none">
             {/* 手机端折叠条：收起时只有一条窄条贴底（docs/06 7.8） */}
             <button
               type="button"
