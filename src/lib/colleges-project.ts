@@ -1,44 +1,19 @@
 /**
  * 投影与视口数学 —— 纯函数，不依赖 React，可直接单元测试（docs/08 §5.1 / §6.2 / §6.3）。
+ *
+ * 投影（`project` / `PROJECTION` / `MAP_W` / `MAP_H` / `MAP_VIEWBOX`）已经搬到
+ * `lib/map-project.ts`，现场全景的梦想院校地图与这里共用同一套（docs/11 §1.3）。
+ * 本文件 **re-export**，所有现有 import 与测试不受影响。
  */
+import { MAP_H, MAP_W } from "./map-project";
 
-// ---------------------------------------------------------------------------
-// 投影：Albers 等距圆锥
-//
-// 参数与参考实现一致 —— 已用 113 个点反解验证，残差最大 0.069 像素。
-// 这组参数是底图与打点共同的坐标系：改任何一项，州界和圆点会一起偏。
-// ---------------------------------------------------------------------------
-export const PROJECTION = {
-  parallel1: 29.5,
-  parallel2: 45.5,
-  originLat: 37.5,
-  centralLng: -96,
-  scale: 1300,
-  translateX: 498.02,
-  translateY: 332.53,
-} as const;
-
-const rad = (d: number) => (d * Math.PI) / 180;
-
-/** 经纬度 → 视口坐标（y 轴已翻转，与 SVG 一致）。 */
-export function project(lat: number, lng: number): [number, number] {
-  const { parallel1, parallel2, originLat, centralLng, scale, translateX, translateY } = PROJECTION;
-  const n = (Math.sin(rad(parallel1)) + Math.sin(rad(parallel2))) / 2;
-  const C = Math.cos(rad(parallel1)) ** 2 + 2 * n * Math.sin(rad(parallel1));
-  const rho = Math.sqrt(C - 2 * n * Math.sin(rad(lat))) / n;
-  const rho0 = Math.sqrt(C - 2 * n * Math.sin(rad(originLat))) / n;
-  const theta = n * rad(lng - centralLng);
-  const x = rho * Math.sin(theta);
-  const y = rho0 - rho * Math.cos(theta);
-  return [translateX + scale * x, translateY - scale * y];
-}
-
-// ---------------------------------------------------------------------------
-// 视口
-// ---------------------------------------------------------------------------
-export const MAP_W = 975;
-export const MAP_H = 610;
-export const MAP_VIEWBOX = `0 0 ${MAP_W} ${MAP_H}`;
+export {
+  MAP_H,
+  MAP_VIEWBOX,
+  MAP_W,
+  PROJECTION,
+  project,
+} from "./map-project";
 
 /** 缩放的宽度边界（docs/08 §6.3）。 */
 export const MIN_VIEW_W = 110;

@@ -253,12 +253,13 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 4 �
    （MySQL + 云服务器 IP），已移到仓库外：`F:\AI_Agent\HFI家长成长营-根目录遗留.env`。
 4. ~~`package.json` 的 `name`~~ —— **已完成**，已改为 `hfi-family-growth-camp`。
 
-> 另有**一处未收尾的代码改动**待处理（2026-09-17 发现，非本规范内容）：工作区里
-> 「大屏脱敏 + AI 只输出方向」那轮改动改到一半——`/api/children` 的 prompt 已不产出
-> `summary`/`traits`，但写库代码仍在写 `aiTraits` / `aiSummary`；`/api/children/summary`
-> 仍在从废弃的 `aiTraits` 聚合。新数据这两个字段会永远是空。开工前应先收尾或回退。
+5. ~~未收尾的代码改动~~ —— **已收尾**（2026-09-17）。写库侧早已停止写 `aiTraits` /
+   `aiSummary`；本次删掉了 `/api/children/summary` 里从废弃 `aiTraits` 聚合 `traits`
+   的死代码（它永远返回 `{}`，且没有任何页面读它），以及 `/explore` 的类型残留。
+   `children` 表的 `ai_traits` / `ai_summary` 两列**先留着当历史残留，不删**——
+   删列是对生产库不可逆的操作，等 `/child/[token]` 画像页定型后再一次性决定。
 
-5. **`/api/children/summary` 接口未脱敏（已登记的已知风险）**——它返回 `children: rows`
+6. **`/api/children/summary` 接口未脱敏（已登记的已知风险）**——它返回 `children: rows`
    全字段，`englishName` 和 `aiDirections` 一起发到浏览器。`/explore` 的界面虽然已经
    不渲染姓名，但打开 devtools 就能拿到「英文名 → 方向」的配对，**这正是第五节禁止的组合**。
    2026-09-17 决定一期不修（当前用不到），但这是规范层面的缺口，二期必须处理。

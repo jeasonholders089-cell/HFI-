@@ -4,8 +4,8 @@ import {SiteNav} from '@/components/site-nav';
 import {parseUniversities} from '@/lib/university-names';
 import {categorized,CATEGORIES} from '@/lib/growth-categories';
 import {useEffect,useState} from 'react';
-type Child={id:number;englishName:string;age:number;dreamSchool:string;interests:string;aiDirections:string|null;aiSummary:string|null};
-type Summary={total:number;classified:number;children:Child[];directions:Record<string,number>;traits:Record<string,number>};
+type Child={id:number;englishName:string;age:number;dreamSchool:string;interests:string;aiDirections:string|null};
+type Summary={total:number;classified:number;children:Child[];directions:Record<string,number>};
 function hasProfile(c:Child){try{return JSON.parse(c.aiDirections||'[]').length===3}catch{return false}}
 export default function Explore(){
  const [data,setData]=useState<Summary|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);

@@ -54,10 +54,14 @@ describe("配色守卫", () => {
     }
   });
 
-  it("选校地图的页面与组件只用色板里的色值", () => {
+  it("选校地图与现场全景的页面和组件只用色板里的色值", () => {
     const files = [
       path.join(SRC, "app", "colleges", "page.tsx"),
+      path.join(SRC, "app", "explore", "page.tsx"),
       ...walk(path.join(SRC, "components", "colleges")),
+      // 现场全景改版新增的两处：共享底图与梦想院校地图（docs/11 §4.1）
+      ...walk(path.join(SRC, "components", "map")),
+      ...walk(path.join(SRC, "components", "explore")),
     ];
     const offenders: string[] = [];
     for (const f of files) {

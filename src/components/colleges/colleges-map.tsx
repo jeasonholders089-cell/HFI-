@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { useLang, useT } from "@/components/colleges/colleges-context";
+import { UsBaseLayers } from "@/components/map/us-base-layers";
 import type { College } from "@/lib/colleges-data";
 import { layoutLabels, spreadPoints } from "@/lib/colleges-labels";
 import { nameOf, typeShort } from "@/lib/colleges-l10n";
@@ -35,7 +36,6 @@ import {
   type ViewBox,
 } from "@/lib/colleges-project";
 import { readFlag, writeFlag } from "@/lib/colleges-storage";
-import { NEIGHBOR_LAND, STATE_PATHS, US_INSETS } from "@/lib/us-map-paths";
 import { CITY_LABELS, GEO_LABELS, STATE_LABELS } from "@/lib/us-map-labels";
 
 /**
@@ -427,59 +427,9 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null };
         }}
       >
-        {/*
-          ① 海洋：整块矩形，**单一颜色**（最底层，其余都压在上面）。
-          不用渐变：容器宽高比与 viewBox 宽高比不一致时，SVG 会在两侧或上下留白，
-          渐变会在「内容区」与「留白区」之间露出一条接缝。纯色 + 和容器同色，
-          接缝就不存在了 —— "陆地之外都是海洋"。
-        */}
-        <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="var(--map-ocean)" pointerEvents="none" />
-
-        {/* ② 邻国陆地（加拿大 / 墨西哥 / 巴哈马 / 古巴）：平涂，比美国本土深一档 */}
-        <g aria-hidden>
-          {NEIGHBOR_LAND.map((n) => (
-            <path
-              key={n.id}
-              d={n.d}
-              fill="var(--map-neighbor)"
-              stroke="var(--map-neighbor-line)"
-              strokeWidth={1 / Math.max(1, k ** 0.5)}
-              strokeLinejoin="round"
-              pointerEvents="none"
-            />
-          ))}
-        </g>
-
-        {/*
-          ③ 美国：本土 49 州 + 阿拉斯加 / 夏威夷插图，整组带投影。
-          投影是把它从邻国陆地上"抬起来"的那一下 —— 也是这三层里唯一的层级信号。
-        */}
-        <g className="land-shadow">
-          {US_INSETS.map((ins) => (
-            <g key={ins.st} transform={ins.transform}>
-              <path
-                d={ins.d}
-                fill="var(--map-land)"
-                stroke="var(--map-inset-line)"
-                strokeWidth={1.1 / Math.max(1, k ** 0.5)}
-                strokeLinejoin="round"
-                pointerEvents="none"
-              />
-            </g>
-          ))}
-          {STATE_PATHS.map((s) => (
-            <path
-              key={s.st}
-              d={s.d}
-              fill={hoverState === s.st ? "var(--map-land-hover)" : "var(--map-land)"}
-              stroke={hoverState === s.st ? "var(--map-land-hover-line)" : "var(--map-land-line)"}
-              strokeWidth={(hoverState === s.st ? 1.2 : 1.1) / Math.max(1, k ** 0.5)}
-              strokeLinejoin="round"
-              onPointerEnter={() => setHoverState(s.st)}
-              onPointerLeave={() => setHoverState((cur) => (cur === s.st ? null : cur))}
-            />
-          ))}
-        </g>
+        {/* 底图三层：海洋 → 邻国陆地 → 美国（本土 49 州 + AK/HI 插图 + 投影）。
+            与现场全景的梦想院校地图共用同一个组件（docs/11 §1.3）。 */}
+        <UsBaseLayers k={k} hoverState={hoverState} onHoverState={setHoverState} />
 
         {/* 海陆标注（5 个，恒显）*/}
         <g aria-hidden>

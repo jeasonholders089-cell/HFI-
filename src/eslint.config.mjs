@@ -104,6 +104,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    // vitest 覆盖率报告（pnpm test:coverage 的输出，已被 .gitignore 忽略）
+    "coverage/**",
     "next-env.d.ts",
     // 平台元数据目录, 可能含任意 js/ts 附件, 不属于用户项目
     ".luffy/**",

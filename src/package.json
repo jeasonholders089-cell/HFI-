@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage --coverage.include=lib/colleges-{project,filter,match,derive,format,i18n}.ts",
+    "test:coverage": "vitest run --coverage --coverage.include=lib/{colleges-{project,filter,match,derive,format,i18n},school-locate,dream-schools}.ts",
     "verify": "pnpm lint && pnpm test && pnpm build",
     "build:extract": "tsx scripts/extract-colleges.ts",
     "build:extract-coords": "tsx scripts/extract-university-coords.ts",

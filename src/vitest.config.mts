@@ -21,5 +21,13 @@ export default defineConfig({
     globals: false,
     setupFiles: ["./vitest.setup.ts"],
     testTimeout: 30000,
+    coverage: {
+      // 新增模块的门槛比老模块高（docs/11 §6.1）：它们是纯函数，且直接决定
+      // 梦想院校的点画在哪 —— 画错一个州比少画一个点更糟。
+      thresholds: {
+        "lib/school-locate.ts": { lines: 90 },
+        "lib/dream-schools.ts": { lines: 90 },
+      },
+    },
   },
 });
