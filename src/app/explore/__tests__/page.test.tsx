@@ -74,8 +74,16 @@ describe("/explore 的版面顺序与口径", () => {
     render(<Explore />);
     const section = (await screen.findByText("发展方向统计")).closest("section") as HTMLElement;
 
-    const labels = [...section.querySelectorAll("span:first-child")].map((s) => s.textContent);
-    expect(labels).toEqual(["商科与管理", "人文科学", "数学与计算"]);
+    // v1.1 起类目名后面跟着一行释义（docs/10 §3.6），所以断言改成"以类目名开头"。
+    // 选择器必须是**直接子元素**：释义本身也是个 span，用 `span:first-child` 会一起选进来。
+    const labels = [...section.querySelectorAll("div.flex.justify-between > span:first-child")].map(
+      (s) => s.textContent ?? "",
+    );
+    const expected = ["商科与管理", "人文科学", "数学与计算"];
+    expect(labels.slice(0, 3).map((t) => expected.findIndex((n) => t.startsWith(n)))).toEqual([0, 1, 2]);
+    // 每一行都带「例如：…」的释义，且 0 人的类别连释义一起不渲染
+    expect(section.textContent).toContain("例如：经济与金融");
+    expect(section.textContent).not.toContain("例如：政治");
     expect(section.textContent).not.toContain("社会科学");
     expect(section.textContent).not.toContain("艺术科学");
     expect(section.textContent).toContain("固定八类");
@@ -98,11 +106,13 @@ describe("/explore 的版面顺序与口径", () => {
     expect(bars.some((s) => s?.includes("width: 2%"))).toBe(true);
   });
 
-  it("地图数量对不上时，图下写出「另有 N 人次未收录坐标」", async () => {
+  it("地图数量对不上时，图下写出人话版的「另有 N 人次…暂未收录」（评审 M4 / S4）", async () => {
     mockFetch();
     render(<Explore />);
     await screen.findByText("梦想院校地图");
-    expect(screen.getByText(/另有 1 人次未收录坐标（1 所）/)).toBeTruthy();
+    expect(screen.getByText(/另有 1 人次填了暂未收录的院校（1 所）/)).toBeTruthy();
+    // 量词口径：跨校合计才用人次，并补半句说明
+    expect(screen.getByText(/同一孩子的多所院校各计一次/)).toBeTruthy();
   });
 
   it("完整名单里，未收录的标注出来；已收录的不标注", async () => {

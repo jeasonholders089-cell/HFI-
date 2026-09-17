@@ -2488,5 +2488,6 @@ export const COORD_ROWS: CoordRow[] = [
  * 每条都带 reason 与 source，见 data/university-coords.overrides.json。
  */
 export const COORD_OVERRIDES: Record<string, CoordRow> = {
-  "帕森斯设计学院": ["The New School","New York","NY",40.73551,-73.99711]
+  "帕森斯设计学院": ["The New School","New York","NY",40.73551,-73.99711],
+  "罗格斯大学纽瓦克分校": ["罗格斯大学纽瓦克分校","Newark","NJ",40.741,-74.175]
 };

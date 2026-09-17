@@ -4,5 +4,14 @@
     "name_en": "The New School",
     "reason": "帕森斯是 The New School 下辖的设计学院，Scorecard 里没有独立的 Parsons 机构记录；The New School 的坐标即帕森斯所在（66 W 12th St, New York）。打点位置正确，只是名字对不上，所以用人工覆盖。",
     "source": "https://www.newschool.edu/about/"
+  },
+  {
+    "match": "罗格斯大学纽瓦克分校",
+    "city": "Newark",
+    "st": "NJ",
+    "lat": 40.741,
+    "lng": -74.175,
+    "reason": "Scorecard 只登记了罗格斯大学主校区（Rutgers University-New Brunswick），纽瓦克分校没有独立机构记录，用坐标表解析不出来。坐标取自我们自己 data/colleges.csv 的同一条记录（与 113 个点的投影回归基准同源，残差 < 1px）。",
+    "source": "data/colleges.csv 的 Rutgers University-Newark 行"
   }
 ]

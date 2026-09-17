@@ -37,7 +37,23 @@ const OUT = path.resolve(
 const MIN_ROWS = 2000;
 const MAX_ROWS = 3500;
 
-type Override = { match: string; name_en: string; reason: string; source: string };
+/**
+ * 人工覆盖表的一条。两种写法**二选一**：
+ *   ① `name_en`：去坐标表里解析坐标（适合"学院挂在大学下"这类，如帕森斯 → The New School）；
+ *   ② `lat` / `lng` + `city` / `st`：坐标表里**根本没有这所机构**时直接给坐标
+ *      （如 `Rutgers University-Newark`——Scorecard 只登记了罗格斯主校区）。
+ *      坐标必须能从别处核对到，`source` 里写清出处。
+ */
+type Override = {
+  match: string;
+  name_en?: string;
+  city?: string;
+  st?: string;
+  lat?: number;
+  lng?: number;
+  reason: string;
+  source: string;
+};
 type Row = [string, string, string, number, number];
 
 /* ---------------------------- CSV 解析 ---------------------------- */
@@ -153,22 +169,42 @@ function main() {
   if (!Array.isArray(overridesRaw)) fail(1, "人工覆盖表必须是数组");
   const overrides: Record<string, Row> = {};
   for (const raw of overridesRaw as Override[]) {
-    for (const field of ["match", "name_en", "reason", "source"] as const) {
+    if (typeof raw?.match !== "string" || !raw.match.trim()) fail(1, "人工覆盖表缺 match");
+    for (const field of ["reason", "source"] as const) {
       if (typeof raw?.[field] !== "string" || !raw[field].trim())
         fail(1, `人工覆盖表每条都必须有非空的 ${field}：${JSON.stringify(raw)}`);
     }
-    const key = normalizeName(raw.name_en);
-    const hits = rows.filter((r) => normalizeName(r[0]) === key);
-    if (hits.length !== 1) {
-      fail(
-        1,
-        `人工覆盖表里的 name_en「${raw.name_en}」在坐标表里命中 ${hits.length} 条（要求恰好 1 条）：` +
-          hits.map((h) => h[0]).join(" / "),
-      );
-    }
     if (overrides[raw.match]) fail(1, `人工覆盖表的 match「${raw.match}」重复`);
-    overrides[raw.match] = hits[0];
-    console.log(`人工覆盖：${raw.match} → ${hits[0][0]}（${hits[0][1]}, ${hits[0][2]}）`);
+
+    if (raw.name_en) {
+      // 写法 ①：去坐标表里解析
+      const key = normalizeName(raw.name_en);
+      const hits = rows.filter((r) => normalizeName(r[0]) === key);
+      if (hits.length !== 1) {
+        fail(
+          1,
+          `人工覆盖表里的 name_en「${raw.name_en}」在坐标表里命中 ${hits.length} 条（要求恰好 1 条）：` +
+            hits.map((h) => h[0]).join(" / "),
+        );
+      }
+      overrides[raw.match] = hits[0];
+      console.log(`人工覆盖：${raw.match} → ${hits[0][0]}（${hits[0][1]}, ${hits[0][2]}）`);
+      continue;
+    }
+
+    // 写法 ②：坐标表里没有这所机构，直接给坐标（必须齐全且合法）
+    const { city, st, lat, lng } = raw;
+    if (typeof city !== "string" || !city.trim() || typeof st !== "string" || !/^[A-Z]{2}$/.test(st)) {
+      fail(1, `人工覆盖表「${raw.match}」：要么给可解析的 name_en，要么给 city + 两位州代码`);
+    }
+    if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      fail(1, `人工覆盖表「${raw.match}」：lat / lng 必须是有限数字`);
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      fail(1, `人工覆盖表「${raw.match}」：经纬度越界（${lat}, ${lng}）`);
+    }
+    overrides[raw.match] = [raw.name_en ?? raw.match, city, st, lat, lng];
+    console.log(`人工覆盖：${raw.match} → 直接给坐标（${city}, ${st} ${lat}, ${lng}）`);
   }
 
   // —— 产物 ——

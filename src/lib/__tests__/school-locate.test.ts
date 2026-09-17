@@ -4,9 +4,13 @@
  * 这一组里最值钱的是 A-1（别名表 69/69）与 A-6（歧义闸）：
  * 一个证明「孩子常用写法都能落到地图上」，一个证明「拿不准的时候宁可不打点」。
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
-import { project } from "../colleges-project";
+import { MAP_H, MAP_W, project } from "../colleges-project";
 import {
   buildCoordIndex,
   buildOverrideMap,
@@ -41,7 +45,9 @@ describe("locateSchool —— 别名表覆盖率（核心验收）", () => {
   it("A-1 别名表每一条规范名都能定位到坐标（69/69）", () => {
     const missed = ALIAS_ENTRIES.map(([canonical]) => canonical).filter((c) => !locate(c));
     expect(missed, `未命中的规范名：${missed.join("、")}`).toEqual([]);
-    expect(ALIAS_ENTRIES.length).toBe(69);
+    // 69 条是评审前的规模；2026-09-17 按评审 M6 补了对齐 `data/colleges.csv` 的 57 条，
+    // 现在是 126 条（69 + 57）。条数本身不是契约，**全部命中**才是。
+    expect(ALIAS_ENTRIES.length).toBe(126);
   });
 
   it("A-2 10 所艺术 / 音乐院校逐一命中，且标明来源", () => {
@@ -165,5 +171,76 @@ describe("buildCoordIndex", () => {
 
   it("人工覆盖表的键归一化后可查到", () => {
     expect(overrides.get(normalizeName("帕森斯设计学院"))).toBeDefined();
+  });
+});
+
+/**
+ * A-13（v1.1 评审 M6 / docs/11 §0 更正 14）：**我们自己展示的中文校名必须都能定位**。
+ *
+ * 为什么单列一组：家长会从 `/colleges`（全站唯一展示院校中文名的页面）抄中文名填问卷。
+ * 实测修之前只有 56/113 命中——雪城、杜兰、凯斯西储、威廉玛丽、布林茅尔这些
+ * 都会在大屏地图上**凭空消失**，而页面上看不出任何异常。
+ *
+ * 这条守住的是"我们展示过的名字，一定定位得到"这个承诺，不是"别名表有多少条"。
+ */
+describe("A-13 · data/colleges.csv 的 113 个中文校名（评审 M6）", () => {
+  /** 只切前两列，正确处理带引号的字段（英文校名里有逗号）。 */
+  function firstTwo(line: string): [string, string] {
+    const out: string[] = [];
+    let cur = "";
+    let quoted = false;
+    for (let i = 0; i < line.length && out.length < 2; i++) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else quoted = false;
+        } else cur += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ",") {
+        out.push(cur);
+        cur = "";
+      } else cur += ch;
+    }
+    out.push(cur);
+    return [out[0] ?? "", out[1] ?? ""];
+  }
+
+  const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+  const csv = readFileSync(path.join(REPO, "data", "colleges.csv"), "utf8");
+  const zhNames = csv
+    .split(/\r?\n/)
+    .slice(1)
+    .filter((l) => l.trim())
+    .map((l) => firstTwo(l)[1])
+    .filter(Boolean);
+
+  it("113 个中文名逐条都能定位到坐标", () => {
+    expect(zhNames).toHaveLength(113);
+    const missed = zhNames.filter((zh) => !locate(zh));
+    expect(missed, `未命中的中文校名：${missed.join("、")}`).toEqual([]);
+  });
+
+  it("定位到的坐标都能投影进画布（否则等于没定位）", () => {
+    for (const zh of zhNames) {
+      const hit = locate(zh);
+      expect(hit, `${zh} 未命中`).not.toBeNull();
+      const [x, y] = project(hit!.lat, hit!.lng);
+      expect(x, `${zh} 的 x 越界`).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(MAP_W);
+      expect(y, `${zh} 的 y 越界`).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(MAP_H);
+    }
+  });
+
+  it("同一所学校的不同中文写法归到同一个规范名（不产生两个展示名）", () => {
+    // 卡耐基梅隆 / 卡内基梅隆、厄本那 / 厄巴纳 这类一字之差的译名
+    expect(locate("卡耐基梅隆大学")?.name).toBe(locate("卡内基梅隆大学")?.name);
+    expect(locate("伊利诺伊大学厄本那-香槟分校")?.name).toBe(
+      locate("伊利诺伊大学厄巴纳-香槟分校")?.name,
+    );
+    expect(locate("华盛顿大学(西雅图)")?.name).toBe(locate("华盛顿大学")?.name);
   });
 });

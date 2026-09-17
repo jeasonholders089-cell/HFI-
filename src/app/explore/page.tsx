@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SiteNav } from "@/components/site-nav";
 import { DreamSchoolMap, type DreamSchoolMapItem } from "@/components/explore/dream-school-map";
-import { categorized, CATEGORIES } from "@/lib/growth-categories";
+import { categorized, CATEGORIES, CATEGORY_NOTES } from "@/lib/growth-categories";
 
 /**
  * 现场全景（docs/10 §3.1 / docs/11 §4.2）。
@@ -34,7 +34,7 @@ type Summary = {
   classified: number;
   children: Child[];
   directions: Record<string, number>;
-  /** 服务端算好的人次与坐标（未命中的也返回，matched:false、坐标为 null） */
+/** 服务端算好的**人数**与坐标（未命中的也返回，matched:false、坐标为 null） */
   dreamSchools: DreamSchoolMapItem[];
 };
 
@@ -51,6 +51,16 @@ function hasProfile(c: Child) {
 /** 工作人员按钮：淡色小按钮，不占第一屏主体（docs/10 §3.1 的 ①）。 */
 const BTN =
   "rounded border border-[#aeb7ad] px-3 py-1.5 text-xs text-[#17382f] hover:border-[#8b6f45] disabled:opacity-40";
+
+/** 后台轮询周期（docs/11 §5.1：30–60 秒，取 45 秒）。 */
+const POLL_MS = 45000;
+/** 连续失败到这个次数，才在标题行提示"可能已过期"。 */
+const STALE_AFTER = 3;
+
+/** HH:MM —— 手写补零，不用 toLocaleTimeString（那依赖运行环境的 ICU）。 */
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 export default function Explore() {
   const [data, setData] = useState<Summary | null>(null);
@@ -69,6 +79,15 @@ export default function Explore() {
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  /** 「更新于 HH:MM」——现场判断大屏是不是活的的唯一证据（docs/11 §5.1） */
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  /** 后台轮询连续失败次数；≥3 才在标题行提示"可能已过期" */
+  const [staleCount, setStaleCount] = useState(0);
+  /**
+   * 轮询要跳过"正在进行的工作人员动作"。用 ref 而不是 state：
+   * 定时器的回调不该因为 busy 变了就重建（那会重置计时）。
+   */
+  const busyRef = useRef(false);
 
   async function generateCloud() {
     if (cloudLoading) return;
@@ -191,6 +210,8 @@ export default function Explore() {
       const r = await fetch("/api/children/summary", { cache: "no-store", signal: controller.signal });
       if (!r.ok) throw Error("暂时无法读取数据库，请点击刷新数据重试");
       setData(await r.json());
+      setUpdatedAt(new Date());
+      setStaleCount(0);
     } catch (e) {
       setError(
         controller.signal.aborted
@@ -207,6 +228,44 @@ export default function Explore() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  /**
+   * 现场态：每 45 秒静默拉一次（docs/11 §5.1，评审 M1）。
+   *
+   * 为什么必须做：原来只在挂载时读一次，家长在 /register 新提交的问卷**不会**出现在大屏上，
+   * 要工作人员手动点「刷新数据」。而且它**静默地报旧数字**——比报错更伤信任。
+   *
+   * 四条纪律（照 §5.1 写死）：
+   *   1. 周期 30–60 秒，取 45 秒；
+   *   2. 工作人员的动作进行中（AI 分析 / 清空弹窗 / 删除中）**跳过这一轮**；
+   *   3. 失败**不清空数据、不写 error、不弹红字**，只累加 staleCount；
+   *   4. **不翻转 `loading`** —— 它驱动「刷新数据」的按钮文案与禁用态，
+   *      轮询走它会让大屏每 45 秒闪一次、并把工作人员手里的按钮锁住。
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const id = setInterval(() => {
+      if (busyRef.current) return;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      fetch("/api/children/summary", { cache: "no-store", signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("bad status"))))
+        .then((json) => {
+          if (cancelled) return;
+          setData(json);
+          setUpdatedAt(new Date());
+          setStaleCount(0);
+        })
+        .catch(() => {
+          if (!cancelled) setStaleCount((n) => n + 1);
+        })
+        .finally(() => clearTimeout(timer));
+    }, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   const rows = data?.children || [];
@@ -227,6 +286,7 @@ export default function Explore() {
   const unmatchedCount = unmatched.reduce((sum, s) => sum + s.count, 0);
 
   const busy = running || clearing || deletingId !== null;
+  busyRef.current = busy;
 
   return (
     <main className="min-h-screen bg-[#f4f0e6] text-[#17382f]">
@@ -261,7 +321,35 @@ export default function Explore() {
               </div>
             )}
           </div>
+          {/*
+            「人数最多的 3 个方向」（评审 M5）：1080p 下 8 类条形图整体在折线以下，
+            而大屏没人会去滚——所以把"往哪走"的结论放一份到标题行，3 个短标签，不做条形。
+          */}
+          {data && directionRows.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-[#607168]">人数最多的方向</span>
+              {directionRows.slice(0, 3).map(([n, v]) => (
+                <span
+                  key={n}
+                  className="rounded-full border border-[#8b6f45] bg-white px-2.5 py-1 text-xs text-[#8b6f45]"
+                >
+                  {n} {v} 人
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
+            {/* 「更新于 HH:MM」——现场判断"大屏是不是活的"的唯一证据（docs/11 §5.1） */}
+            {updatedAt && (
+              <span
+                className={`text-xs ${staleCount >= STALE_AFTER ? "text-[#a26047]" : "text-[#607168]"}`}
+                title={staleCount >= STALE_AFTER ? "后台自动刷新连续失败，显示的是最后一次成功的数据" : undefined}
+              >
+                {staleCount >= STALE_AFTER
+                  ? `数据可能已过期 · 最后更新 ${hhmm(updatedAt)}`
+                  : `更新于 ${hhmm(updatedAt)}`}
+              </span>
+            )}
             <button
               type="button"
               disabled={busy || loading || rows.length === completed}
@@ -361,16 +449,19 @@ export default function Explore() {
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <h2 className="text-2xl">梦想院校地图</h2>
                 <p className="text-xs text-[#607168]">
-                  圆点大小按人次分档，悬停看「校名 · 人次」。只显示人次，不显示任何姓名。
+                  圆点大小按人数分档，悬停看「校名 · N 人」。只显示人数，不显示任何姓名。
                 </p>
               </div>
               <div className="mt-5">
                 <DreamSchoolMap schools={dreamSchools} />
               </div>
               {unmatchedCount > 0 && (
-                <p className="mt-3 text-sm text-[#8b6f45]">
-                  另有 {unmatchedCount} 人次未收录坐标（{unmatched.length} 所），名单见下，不计入地图。
-                </p>
+                <>
+                  <p className="mt-3 text-sm text-[#8b6f45]">
+                    另有 {unmatchedCount} 人次填了暂未收录的院校（{unmatched.length} 所），见下方名单。
+                  </p>
+                  <p className="mt-1 text-xs text-[#607168]">同一孩子的多所院校各计一次，所以这里用「人次」。</p>
+                </>
               )}
             </section>
 
@@ -398,8 +489,12 @@ export default function Explore() {
                 {directionRows.map(([n, v]) => (
                   <div key={n} className="my-1">
                     <div className="flex justify-between">
-                      <span>{n}</span>
-                      <span>{v} 人</span>
+                      <span>
+                        {n}
+                        {/* 类目释义（docs/10 §3.6，评审 S1）：静态文案，不是专业推荐 */}
+                        <span className="ml-2 text-xs text-[#dce4d9]">{CATEGORY_NOTES[n]}</span>
+                      </span>
+                      <span className="shrink-0 pl-3">{v} 人</span>
                     </div>
                     <div className="mt-2 h-1 bg-[#527665]">
                       <div

@@ -57,12 +57,14 @@ describe("DreamSchoolMap", () => {
     expect(bubbleRadius(400)).toBe(15);
   });
 
-  it("标签最多 8 个，且带人次", () => {
+  it("标签最多 12 个，且带单位「人」（v1.1：标签才是信息承载者）", () => {
     const many = Array.from({ length: 20 }, (_, i) => hit(`学校${i}`, 20 - i, 30 + i, -100 + i));
     const { container } = render(<DreamSchoolMap schools={many} />);
     const labels = [...container.querySelectorAll("g.dream-labels text")];
-    expect(labels.length).toBeLessThanOrEqual(8);
-    for (const l of labels) expect(l.textContent).toMatch(/ · \d+$/);
+    expect(labels.length).toBeLessThanOrEqual(12);
+    expect(labels.length).toBeGreaterThan(8);
+    // 单所院校那个数是"填了它的孩子数"，量词是「人」（docs/10 §3.3 的口径表）
+    for (const l of labels) expect(l.textContent).toMatch(/ · \d+ 人$/);
   });
 
   it("空态：没有数据时画底图并提示", () => {
@@ -76,12 +78,12 @@ describe("DreamSchoolMap", () => {
     expect(screen.getByText("已录入的梦想院校都还没有收录坐标")).toBeTruthy();
   });
 
-  it("地图上不出现任何姓名（只有校名与人次）", () => {
+  it("地图上不出现任何姓名（只有校名与人数）", () => {
     const { container } = render(
       <DreamSchoolMap schools={[hit("斯坦福大学", 2, 37.4275, -122.1697)]} />,
     );
     const text = container.textContent ?? "";
-    expect(text).toContain("斯坦福大学 · 2");
+    expect(text).toContain("斯坦福大学 · 2 人");
     // 组件的入参里根本没有姓名字段，这里再守一道：渲染出的文本里不该出现「人」以外的个体标识
     expect(text).not.toMatch(/英文名|姓名|孩子 [A-Z]/);
   });
