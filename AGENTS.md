@@ -143,14 +143,15 @@ compose.yaml Dockerfile  # 平台部署配置
 | 样式 | Tailwind CSS 4；主题色定义在 `app/globals.css`（底色 `#f4f0e6`，主色 `#17382f`） |
 | 包管理 | pnpm（Dockerfile 里 pin pnpm@10，配淘宝 registry 加速） |
 | 数据库 | Postgres，经 Drizzle ORM（`drizzle-orm` 0.44.2 + `drizzle-kit` 0.31.4 + `pg`） |
-| AI | `@inferencesh/sdk` 走**平台代理**调用；模型写死 `anthropic/claude-haiku-4-5` |
+| AI | **两条通道，按环境变量自动选**（`lib/ai98.ts` 的 `pickChannel`）：① **AI98**（OpenAI 兼容 `/chat/completions`，模型由 `AI98_MODEL` 定，默认 `claude-sonnet-4-5`）；② 平台代理（`@inferencesh/sdk`，兜底）。**配了 AI98 就只用 AI98**，不会一半请求走 A 一半走 B |
 | 表格导入 | `xlsx`（首页的 Excel 批量录入） |
 | 二维码 | `qrcode`（首页生成手机问卷二维码） |
 
 ### AI 接法的三条硬规矩
 
-1. **key 永远不落前端**——走 `NEXT_PUBLIC_INFERENCE_PROXY_URL` 指向的平台代理，
-   客户端不出现 apiKey。
+1. **key 永远不落前端**——AI98 的 key 是**服务端密钥**（`AI98_KEY`，只在 `.env`，不进代码）。
+   首页那个「AI 试用框」原本在浏览器里调模型，2026-09-17 已搬到服务端 `/api/ai-try`——
+   否则 key 会进客户端 bundle。`lib/use-inference-run.ts`（浏览器侧调用封装）随之删除。
 2. **重试只在 `lib/inference.ts` 里做**——平台有并发闸（每用户同时 3 个任务），
    提交撞闸时按 3s / 6s / 12s 指数退避；业务代码禁止自写重试循环。
 3. **AI 出参一律走容错解析**，且失败不阻断入库——现有做法是问卷先落库，AI 失败返回 202
@@ -206,6 +207,9 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 8 �
 | 变量 | 用途 |
 | --- | --- |
 | `DATABASE_URL` | 平台注入的 Postgres 连接串（托管库带 `sslmode=require`，见 `lib/pg-dsn.ts`） |
+| `AI98_KEY` | **AI98 模型通道的密钥**（服务端密钥，绝不进客户端）。配了它 + `AI98_BASE_URL` 就走 AI98 |
+| `AI98_BASE_URL` | AI98 的 OpenAI 兼容端点，填到 `/v1` 为止（例：`https://<域名>/v1`） |
+| `AI98_MODEL` | 走 AI98 时用的模型，默认 `claude-sonnet-4-5` |
 | `NEXT_PUBLIC_INFERENCE_PROXY_URL` | 推理代理地址；build 期会被嵌进客户端 bundle |
 | `LUFFY_PREVIEW_ORIGINS` | 沙箱预览反代域名，供 Next dev 放行跨源（见 `next.config.ts`） |
 
@@ -251,8 +255,8 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 8 �
   大屏加载时只读缓存、不调 AI。起因是实测同一个模型同一批孩子**三次给三套完全不同的词**——
   不缓存的话刷新就丢、点两次整屏的词全变。顺带把"超过 9 个词就报错"改成按人数截断到前 9
   （产品规则是"最多显示 9 个"，实测模型给过 10 组）。
-  **真实 AI 调用的待办只完成了一半**：用 DeepSeek 跑通了提示词与校验，但活动当天用的是
-  `anthropic/claude-haiku-4-5`（走平台代理），那一半仍需代理 URL。记录见 `docs/09` §12。
+  ~~真实 AI 调用的待办只完成了一半~~ → **2026-09-18 全部完成**：模型通道切到 AI98（Claude 系列）后，
+  四条链路都用真实调用验过了（注册→自动分析 / 完整生成 / 只重分类 / 词云生成）。记录见 `docs/09` §13。
 - **场次（M7）已完成**（`docs/10` §3.7 / `docs/11` 七、M7）：大屏默认显示今天这一场
   （按北京时间算日界，**不用**数据库的 `current_date`——托管库跑 UTC，早上 8 点的活动会被算到前一天）；
   切换器只列有数据的日期，另有「全部场次」。记录见 `docs/09` §11。
