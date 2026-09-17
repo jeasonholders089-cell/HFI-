@@ -139,6 +139,11 @@ describe("/explore 的版面顺序与口径", () => {
     expect(section.textContent).not.toContain("社会科学");
     expect(section.textContent).not.toContain("艺术科学");
     expect(section.textContent).toContain("固定八类");
+    // 骨架说明（docs/10 §3.6 v1.3）：必须与屏幕上的八类一一对应 ——
+    // 出现「职业」「跨学科」就说明有人照抄了最初那句，会与屏幕对不上
+    expect(section.textContent).toContain("文理核心");
+    expect(section.textContent).toContain("商科与管理");
+    expect(section.textContent).not.toContain("跨学科");
 
     // 条形长度分母是已分类人数（2）：2 人 → 100%，1 人 → 50%
     const bars = [...section.querySelectorAll("div.h-1 > div")].map((d) => d.getAttribute("style"));

@@ -535,6 +535,15 @@ export default function Explore() {
             {/* ③ 发展方向统计（全行，最多 8 条） */}
             <section className="mt-6 bg-[#1e4b3b] p-5 text-white sm:p-7">
               <h2 className="text-2xl">发展方向统计</h2>
+              {/*
+                骨架说明（docs/10 §3.6，v1.3）：屏幕上的八个类别看起来像随手分的，
+                家长会犯嘀咕"美本不是分文理吗"。**注意这句必须与屏幕上的八类一一对应** ——
+                不要把"职业 / 跨学科"写进来（那两个桶刻意不设，理由见 docs/10 §2.1）。
+              */}
+              <p className="mt-3 text-xs leading-5 text-[#dce4d9]">
+                八类按美本常见的学院骨架划分：文理核心（人文 / 社科 / 自然）+ 数学与计算 +
+                工程与应用 + 艺术与设计 + 商科与管理 + 健康与公共服务
+              </p>
               <p className="my-4 text-sm">
                 固定八类 · 同一个孩子在同一类别只计一次，可计入多个类别，因此人数之和可能超过孩子总数。已分类{" "}
                 {data.classified} 人。
