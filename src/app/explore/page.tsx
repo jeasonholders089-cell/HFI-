@@ -628,7 +628,8 @@ export default function Explore() {
                 </button>
               </div>
               <p className="mt-4 text-sm text-[#607168]">
-                点击生成后，AI 根据当前数据库中的问卷归纳特质、合并近义词，最多显示 9 个词。字号按对应孩子人数缩放，同一个孩子在同一特质中只计一次。
+                点击生成后，AI 根据这一场孩子的问卷归纳特质、合并近义词，最多显示 9 个词。
+                字号按对应孩子人数缩放，同一个孩子在同一特质中只计一次。
               </p>
               {cloudLoading && (
                 <p role="status" className="mt-4">
