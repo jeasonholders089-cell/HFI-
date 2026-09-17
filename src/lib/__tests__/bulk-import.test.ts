@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import {
   BULK_FIELDS,
@@ -6,6 +6,8 @@ import {
   checkBulkRows,
   normalizeHeader,
   normalizeRow,
+  FIELD_LABEL,
+  templateRows,
 } from "../bulk-import";
 
 /**
@@ -29,18 +31,6 @@ describe("列名归一", () => {
 });
 
 describe("认中文表头（用户那张 Excel 的真实表头）", () => {
-  // 用户上传的「孩子信息案例.xlsx」第一行
-  const HEADERS = [
-    "孩子的英文名",
-    "年龄",
-    "梦想学校",
-    "兴趣",
-    "喜欢的活动",
-    "孩子自我描述",
-    "家长观察",
-    "梦想职业（选填）",
-  ];
-
   it("八个中文列名全部能归位", () => {
     const row = normalizeRow({
       "孩子的英文名": "Ethan",
@@ -131,5 +121,31 @@ describe("校验与报错", () => {
   it("输出的八个字段与 BULK_FIELDS 完全一致（不漏字段）", () => {
     const r = checkBulkRows([okRow]);
     if (r.ok) expect(Object.keys(r.rows[0]).sort()).toEqual([...BULK_FIELDS].sort());
+  });
+});
+
+/**
+ * 下载的导入模板（2026-09-18 加）。
+ *
+ * 模板不是静态文件、而是**从字段定义生成**的——目的就是不让它和导入端漂移。
+ * 所以这里最值钱的一条是：**把模板自己喂回校验，必须能过**。
+ */
+describe("导入模板", () => {
+  it("第一行就是导入端认的那八个中文列名（与字段定义同源）", () => {
+    expect(templateRows()[0]).toEqual(BULK_FIELDS.map((f) => FIELD_LABEL[f]));
+  });
+
+  it("模板自己能导入：把示例行按表头转成对象 → 校验通过", () => {
+    const [header, ...examples] = templateRows();
+    const objects = examples.map((row) => Object.fromEntries(header.map((h, i) => [h, row[i] ?? ""])));
+    const r = checkBulkRows(objects);
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    if (r.ok) expect(r.rows).toHaveLength(examples.length);
+  });
+
+  it("示例里给了「梦想职业」和留空两种情况 —— 让用户看到它是选填", () => {
+    const rows = templateRows().slice(1);
+    expect(rows.some((r) => r[BULK_FIELDS.indexOf("dreamCareer")])).toBe(true);
+    expect(rows.some((r) => !r[BULK_FIELDS.indexOf("dreamCareer")])).toBe(true);
   });
 });

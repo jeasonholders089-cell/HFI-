@@ -99,6 +99,40 @@ export function fieldList(fields: readonly BulkField[]): string {
   return fields.map((f) => FIELD_LABEL[f]).join("、");
 }
 
+/**
+ * 导入模板的行（第一行表头 + 两行示例）。
+ *
+ * 为什么**生成**而不是放一个静态 xlsx 进仓库：表头必须与导入端认的列名**同源**。
+ * 静态文件迟早会和字段定义漂移——那时用户下载的模板自己导不进去，是最难查的一类问题。
+ * 示例行也是真的能导进去的数据（有单测守着）。
+ */
+export function templateRows(): string[][] {
+  const header = BULK_FIELDS.map((f) => FIELD_LABEL[f]);
+  return [
+    header,
+    [
+      "Emma",
+      "12",
+      "罗德岛设计学院（RISD）",
+      "绘画、视觉日记",
+      "校刊编辑、绘画社团",
+      "我喜欢把想到的故事画下来，会自己记一本视觉日记。",
+      "对细节敏感，做完一件作品会自己回头检查好几遍。",
+      "插画师",
+    ],
+    [
+      "Leo",
+      "14",
+      "卡内基梅隆大学",
+      "机器人搭建、编程",
+      "机器人社团、篮球",
+      "我喜欢把一个东西拆开看清楚它怎么运转。",
+      "遇到感兴趣的事能连续投入好几个小时，不太需要催。",
+      "",
+    ],
+  ];
+}
+
 export type BulkCheck =
   | { ok: true; rows: BulkRow[] }
   | { ok: false; error: string };
