@@ -96,6 +96,7 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
   const [dismissedTips, setDismissedTips] = useState(false);
   /** 容器渲染宽度 —— 散开与拾取阈值都要把屏幕像素换算成视口单位 */
   const [boxW, setBoxW] = useState(0);
+  const [boxH, setBoxH] = useState(0);
   /** 鼠标悬停在哪一个州（§6.4 的位置反馈） */
   const [hoverState, setHoverState] = useState<string | null>(null);
 
@@ -152,17 +153,33 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const sync = () => setBoxW(el.getBoundingClientRect().width);
+    const sync = () => {
+      const r = el.getBoundingClientRect();
+      setBoxW(r.width);
+      setBoxH(r.height);
+    };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
+  /**
+   * 屏幕像素 → 视口单位要用的「内容区宽度」。
+   *
+   * SVG 默认的 `preserveAspectRatio="xMidYMid meet"` 是**等比缩放 + 居中**：
+   * 元素盒子的宽高比与 viewBox(975:610) 不一致时，左右或上下会留白（letterbox）。
+   * 留白区不属于 viewBox，坐标换算必须扣掉它 —— 否则靠边的点会点不中。
+   */
+  const contentWidth = useMemo(() => {
+    if (boxW <= 0 || boxH <= 0) return 0;
+    return vb.w * Math.min(boxW / vb.w, boxH / vb.h);
+  }, [boxW, boxH, vb.w, vb.h]);
+
   /** 渲染坐标：k ≥ 2.5 时散开。**不参与拾取**。 */
   const renderPts = useMemo(
-    () => spreadPoints(colleges.map((c) => ({ en: c.en, x: c.x, y: c.y })), k, vb.w, boxW),
-    [colleges, k, vb.w, boxW],
+    () => spreadPoints(colleges.map((c) => ({ en: c.en, x: c.x, y: c.y })), k, vb.w, contentWidth),
+    [colleges, k, vb.w, contentWidth],
   );
   const renderXY = useMemo(() => {
     const m = new Map<string, { x: number; y: number }>();
@@ -193,6 +210,26 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     setVb((prev) => zoomAt(prev, cx, cy, f));
   }, []);
 
+  /**
+   * 取 SVG 的**内容区**（等比缩放居中之后的实际绘图区，绝对屏幕坐标）。
+   * 所有「屏幕坐标 ↔ viewBox 坐标」的换算都必须用它，不能用元素盒子 ——
+   * 元素盒子比内容区宽/高出来的那一圈是留白，点在留白上算出来的 viewBox 坐标是偏的。
+   */
+  const mapRect = useCallback(() => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    const scale = Math.min(r.width / vb.w, r.height / vb.h) || 1;
+    const w = vb.w * scale;
+    const h = vb.h * scale;
+    return {
+      left: r.left + (r.width - w) / 2,
+      top: r.top + (r.height - h) / 2,
+      width: w,
+      height: h,
+    };
+  }, [vb]);
+
   /** 以视口中心为锚点缩放（缩放按钮用，复用同一套变换，A4）。 */
   const zoomFromCenter = useCallback(
     (f: number) => setVb((prev) => zoomAt(prev, prev.x + prev.w / 2, prev.y + prev.h / 2, f)),
@@ -208,23 +245,25 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const rect = svg.getBoundingClientRect();
+      const rect = mapRect();
+      if (!rect) return;
       const [cx, cy] = screenToViewBox(e.clientX, e.clientY, rect, vb);
       applyZoom(cx, cy, 1.0016 ** -e.deltaY);
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [vb, applyZoom]);
+  }, [vb, applyZoom, mapRect]);
 
   const hitAt = useCallback(
     (clientX: number, clientY: number) => {
       const svg = svgRef.current;
       if (!svg) return null;
-      const rect = svg.getBoundingClientRect();
+      const rect = mapRect();
+      if (!rect) return null;
       const [px, py] = screenToViewBox(clientX, clientY, rect, vb);
       return nearestSchool(candidates, px, py, pickThreshold(vb, rect.width));
     },
-    [candidates, vb],
+    [candidates, vb, mapRect],
   );
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -253,7 +292,8 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return;
-    const rect = svg.getBoundingClientRect();
+    const rect = mapRect();
+    if (!rect) return;
 
     if (pinch.current.pts.has(e.pointerId)) pinch.current.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -324,9 +364,8 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
 
   /** 双击放大（§6.3：f = 1.8）。 */
   const onDoubleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
+    const rect = mapRect();
+    if (!rect) return;
     const [cx, cy] = screenToViewBox(e.clientX, e.clientY, rect, vb);
     applyZoom(cx, cy, 1.8);
   };
@@ -388,14 +427,13 @@ export const CollegesMap = forwardRef<CollegesMapHandle, Props>(function College
           drag.current = { active: false, sx: 0, sy: 0, px: 0, py: 0, moved: false, id: null };
         }}
       >
-        {/* ① 海洋：整块矩形 + 竖向渐变（最底层，其余都压在上面） */}
-        <defs>
-          <linearGradient id="map-oceang" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: "var(--map-ocean-top)" }} />
-            <stop offset="1" style={{ stopColor: "var(--map-ocean-bottom)" }} />
-          </linearGradient>
-        </defs>
-        <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#map-oceang)" pointerEvents="none" />
+        {/*
+          ① 海洋：整块矩形，**单一颜色**（最底层，其余都压在上面）。
+          不用渐变：容器宽高比与 viewBox 宽高比不一致时，SVG 会在两侧或上下留白，
+          渐变会在「内容区」与「留白区」之间露出一条接缝。纯色 + 和容器同色，
+          接缝就不存在了 —— "陆地之外都是海洋"。
+        */}
+        <rect x={0} y={0} width={MAP_W} height={MAP_H} fill="var(--map-ocean)" pointerEvents="none" />
 
         {/* ② 邻国陆地（加拿大 / 墨西哥 / 巴哈马 / 古巴）：平涂，比美国本土深一档 */}
         <g aria-hidden>

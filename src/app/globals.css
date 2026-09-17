@@ -53,9 +53,9 @@
   /* 州悬停高亮：直接复用色板里的 --palette-28，不引入新色相 */
   --map-land-hover:#e6e0d5;
   --map-land-hover-line:#8b6f45;
-  /* 底图分层（2026-09-17 补）：海洋 → 邻国陆地 → 美国（带投影） */
-  --map-ocean-top:#d6d2c7;
-  --map-ocean-bottom:#e8e6dc;
+  /* 底图分层（2026-09-17 补）：海洋 → 邻国陆地 → 美国（带投影）。
+     海洋是**单一颜色**，不做渐变 —— 渐变会在「SVG 内容区」与「元素留白区」之间
+     露出接缝（容器宽高比与 viewBox 宽高比不一致时必然出现）。 */
   --map-neighbor:#efece3;
   --map-neighbor-line:#f6f4ee;
   --map-inset-line:#fdfcf8;

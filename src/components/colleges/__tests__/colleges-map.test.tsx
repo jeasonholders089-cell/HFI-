@@ -14,12 +14,28 @@ import { NEIGHBOR_LAND, US_INSETS } from "@/lib/us-map-paths";
  * 这一组用例的由来：第一版把"拖拽判定阈值"写成 2px，触控板点一下手抖两三像素就被判成拖拽，
  * `pointerup` 直接 return —— **点圆点完全没反应**。所以这里把"点"和"拖"分成两条钉死。
  */
-const W = 800;
+/**
+ * 刻意选一个与 viewBox(975:610) 宽高比差很多的元素盒子：
+ * 这样 SVG 的左右留白有 200px，用错坐标系就会偏出去 200 多像素 ——
+ * 线上「靠边的学校点不中」正是这个偏移。
+ */
+const W = 1200;
 const H = 500;
 
-/** 视口坐标 → 屏幕坐标（用默认视口 0 0 975 610 反算）。 */
+/**
+ * 视口坐标 → 屏幕坐标。
+ *
+ * 必须按 SVG 的**内容区**算，不是元素盒子：`preserveAspectRatio="xMidYMid meet"`
+ * 会等比缩放 + 居中，宽高比不一致时左右/上下留白。这里刻意让元素盒子(800×500) 与
+ * viewBox(975×610) 的宽高比不一致，好把"坐标换算要扣掉留白"这件事测出来 ——
+ * 线上"靠边的学校点不中"就是这个偏移造成的。
+ */
+const SCALE = Math.min(W / MAP_W, H / MAP_H);
+const PAD_X = (W - MAP_W * SCALE) / 2;
+const PAD_Y = (H - MAP_H * SCALE) / 2;
+
 function toScreen(x: number, y: number) {
-  return { clientX: (x / MAP_W) * W, clientY: (y / MAP_H) * H };
+  return { clientX: x * SCALE + PAD_X, clientY: y * SCALE + PAD_Y };
 }
 
 function renderMap(onSelect = vi.fn()) {
@@ -88,6 +104,21 @@ describe("CollegesMap 的点选（§6.2）", () => {
     expect(onSelect).not.toHaveBeenCalled();
     restore();
   });
+
+  it("靠左边缘的院校也点得中（用元素盒子换算会偏出 200px）", () => {
+    const { svg, onSelect, restore } = renderMap();
+    // 取画布上最靠左的那一所（加州一带的院校，x 只有几十）
+    const west = [...COLLEGES].sort((a, b) => a.x - b.x)[0];
+    expect(west.x).toBeLessThan(60);
+
+    const { clientX, clientY } = toScreen(west.x, west.y);
+    expect(clientX).toBeGreaterThan(W / 6); // 屏幕上它在左边 1/6 处，但已经在留白之后
+    fireEvent.pointerDown(svg, { pointerId: 5, clientX, clientY });
+    fireEvent.pointerUp(svg, { pointerId: 5, clientX, clientY });
+
+    expect(onSelect).toHaveBeenCalledWith(west.en);
+    restore();
+  });
 });
 
 describe("CollegesMap 的州悬停高亮（§6.4）", () => {
@@ -128,10 +159,10 @@ describe("底图分层（2026-09-17 补）", () => {
     const { svg, restore } = renderMap();
     const el = svg as unknown as SVGSVGElement;
 
-    // ① 海洋：整块矩形 + 渐变
-    expect(el.querySelector("linearGradient#map-oceang")).not.toBeNull();
+    // ① 海洋：整块矩形、**纯色**（渐变会在 SVG 留白处露出接缝）
+    expect(el.querySelector("linearGradient")).toBeNull();
     const rect = el.querySelector("rect");
-    expect(rect?.getAttribute("fill")).toBe("url(#map-oceang)");
+    expect(rect?.getAttribute("fill")).toBe("var(--map-ocean)");
     expect(Number(rect?.getAttribute("width"))).toBe(MAP_W);
     expect(Number(rect?.getAttribute("height"))).toBe(MAP_H);
 
