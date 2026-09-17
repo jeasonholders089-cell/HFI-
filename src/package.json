@@ -17,6 +17,7 @@
     "build:map": "tsx scripts/build-us-map.ts",
     "build:colleges": "tsx scripts/build-colleges.ts",
     "build:coords": "tsx scripts/build-coords.ts",
+    "seed:demo": "tsx scripts/seed-demo-children.ts",
     "build:data": "pnpm build:map && pnpm build:colleges"
   },
   "dependencies": {

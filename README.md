@@ -79,6 +79,26 @@ pnpm exec drizzle-kit migrate      # 应用迁移（平台发布时也会自动�
 2. 不要手写 `CREATE` / `ALTER` SQL；
 3. **不要用 `drizzle-kit push` 打生产**——它是开发期 sync，`--force` 会静默删列。
 
+### 演示数据（彩排大屏用）
+
+本机没有推理代理，走 `/api/children` 提交只会落库、AI 不会跑，大屏上「已分类」永远是 0。
+要提前看大屏的真实样子，用这个脚本灌一批**带方向**的演示数据：
+
+```bash
+pnpm seed:demo                 # 只预览：多少条、哪些学校、方向怎么分布，不写库
+pnpm seed:demo -- --yes        # 写入「今天」这一场
+pnpm seed:demo -- --count=60 --yes
+pnpm seed:demo -- --clear-today --yes   # 先清掉今天这一场再重填
+```
+
+三条要知道的：
+
+- 写入的 `ai_directions` 是**脚本伪造的**（模拟"AI 已分析"），不是为了骗过谁——
+  它让大屏的每一个区块都有真实量级的内容，方便彩排和验收；
+- 数据是**确定性随机**（固定种子），每次跑出来一模一样，方便复现；
+- 安全闸：没有 `--yes` 只预览；`DATABASE_URL` 不指向 `127.0.0.1` / `localhost` 时**拒绝执行**
+  （防误打托管库），确实要在远端跑得显式加 `--force`；`--clear-today` 只删**今天这一场**，不是删全表。
+
 ---
 
 ## 部署
