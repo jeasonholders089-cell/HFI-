@@ -6,6 +6,18 @@ import {
 } from "@inferencesh/sdk";
 import type { TaskDTO } from "@inferencesh/sdk";
 
+import { ai98Config, pickChannel, runViaAi98 } from "./ai98";
+
+/**
+ * 走哪条通道，按环境变量决定（密钥只放 `.env`，永不进代码）：
+ *
+ *   ① **AI98**（默认）—— OpenAI 兼容的 `/v1/chat/completions`，模型是 Claude 系列。
+ *      需要 `AI98_BASE_URL` + `AI98_KEY`（+ 可选 `AI98_MODEL`）。
+ *   ② **平台代理**（兜底）—— `NEXT_PUBLIC_INFERENCE_PROXY_URL`，走 `@inferencesh/sdk`。
+ *
+ * 为什么不把 key 写进代码：这是项目硬规矩（AGENTS.md 第七节）。
+ * 为什么做成"两条都要"：活动当天哪条通就用哪条，改环境变量即可，不用改代码。
+ */
 /**
  * 创建走平台代理的 inference 客户端.
  * proxyUrl 运行时由平台注入沙箱 env (NEXT_PUBLIC_INFERENCE_PROXY_URL);
@@ -46,6 +58,15 @@ export async function runInference(
   input: Record<string, unknown>,
   opts?: { maxReconnects?: number },
 ): Promise<TaskDTO> {
+  // ① 配了 AI98 就走 AI98（服务端才有 key；浏览器里为 undefined，自动落到 ②）
+  const channel = pickChannel();
+  if (channel === "ai98") {
+    const cfg = ai98Config();
+    if (cfg) return (await runViaAi98(cfg, input)) as unknown as TaskDTO;
+  }
+  if (channel === "none") throw new Error("当前环境缺少推理代理 URL");
+
+  // ② 兜底：平台推理代理
   const client = createInferenceClient();
   const maxSubmitAttempts = 4;
   for (let attempt = 0; ; attempt++) {

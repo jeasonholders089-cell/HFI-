@@ -12,7 +12,7 @@ import { categorized, CATEGORIES, CATEGORY_NOTES } from "@/lib/growth-categories
  *
  * 区块编号与 docs/10 §3.1 一一对应，评审时不会出现两句「第 3 块」指的不是同一个东西：
  *   ① 标题行（左：标题 + 三个数字；右：工作人员按钮，收成浅色小按钮）
- *   ② 梦想院校地图（全行）
+ *   ② 梦校地图（全行）
  *   ③ 发展方向统计（全行，最多 8 条）
  *   ④ 梦想院校完整名单（含未收录）
  *   ⑤ 特质词云
@@ -573,10 +573,10 @@ export default function Explore() {
 
         {data && (
           <>
-            {/* ② 梦想院校地图（全行）——大屏头三秒要回答「今天现场有多少人、往哪走」 */}
+            {/* ② 梦校地图（全行）——大屏头三秒要回答「今天现场有多少人、往哪走」 */}
             <section className="mt-10 border border-[#d6d2c7] bg-[#f8f5ed] p-5 sm:p-7">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="text-2xl">梦想院校地图</h2>
+                <h2 className="text-2xl">梦校</h2>
                 <p className="text-xs text-[#607168]">
                   圆点大小按人数分档，悬停看「校名 · N 人」。只显示人数，不显示任何姓名。
                 </p>

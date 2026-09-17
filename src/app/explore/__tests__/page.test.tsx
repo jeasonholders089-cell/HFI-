@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -57,14 +57,14 @@ afterEach(() => {
 });
 
 describe("/explore 的版面顺序与口径", () => {
-  it("区块顺序是 梦想院校地图 → 发展方向统计 → 完整名单 → 词云 → 已录入的孩子", async () => {
+  it("区块顺序是 梦校 → 发展方向统计 → 完整名单 → 词云 → 已录入的孩子", async () => {
     mockFetch();
     const { container } = render(<Explore />);
-    await screen.findByText("梦想院校地图");
+    await screen.findByText("梦校");
 
     const headings = [...container.querySelectorAll("h2")].map((h) => h.textContent);
     expect(headings).toEqual([
-      "梦想院校地图",
+      "梦校",
       "发展方向统计",
       "梦想院校完整名单",
       "孩子们身上闪闪发光的特质",
@@ -76,7 +76,7 @@ describe("/explore 的版面顺序与口径", () => {
   it("三个数字搬进标题行（与 h1 同一行容器内）", async () => {
     mockFetch();
     const { container } = render(<Explore />);
-    await screen.findByText("梦想院校地图");
+    await screen.findByText("梦校");
     const h1 = container.querySelector("h1");
     // h1 现在包了一层（里面还有场次标签），所以往上一级找标题行容器
     const row = h1?.closest("div.mt-4");
@@ -95,7 +95,7 @@ describe("/explore 的版面顺序与口径", () => {
     it("默认不带 date 参数（今天的场次由服务端按北京时间定）", async () => {
       const fn = mockFetch();
       render(<Explore />);
-      await screen.findByText("梦想院校地图");
+      await screen.findByText("梦校");
       expect(String(fn.mock.calls[0][0])).toBe("/api/children/summary");
       // 场次标签要出现在标题行，家长看"今天这一场"
       expect(screen.getByText(/今天的场次 · 2026-09-18/)).toBeTruthy();
@@ -104,7 +104,7 @@ describe("/explore 的版面顺序与口径", () => {
     it("切到某个历史场次 → 带 ?date= 重拉，标签跟着变", async () => {
       const fn = mockFetch();
       render(<Explore />);
-      await screen.findByText("梦想院校地图");
+      await screen.findByText("梦校");
 
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "2026-09-10" } });
 
@@ -116,7 +116,7 @@ describe("/explore 的版面顺序与口径", () => {
   it("切到「全部场次」→ 带 date=all（复盘口径，等于改版前）", async () => {
       const fn = mockFetch();
       render(<Explore />);
-      await screen.findByText("梦想院校地图");
+      await screen.findByText("梦校");
 
       fireEvent.change(screen.getByRole("combobox"), { target: { value: "all" } });
 
@@ -147,7 +147,7 @@ describe("/explore 的版面顺序与口径", () => {
     it("有缓存就直接显示，不用点「生成」", async () => {
       mockFetch(SUMMARY, CACHED);
       render(<Explore />);
-      await screen.findByText("梦想院校地图");
+      await screen.findByText("梦校");
 
       expect(await screen.findByText("专注投入")).toBeTruthy();
       expect(screen.getByText("观察敏锐")).toBeTruthy();
@@ -159,7 +159,7 @@ describe("/explore 的版面顺序与口径", () => {
     it("缓存属于别的场次 → 不显示（否则家长看到的是别的场次的孩子）", async () => {
       mockFetch(SUMMARY, { ...CACHED, sessionId: "2026-09-10" });
       render(<Explore />);
-      await screen.findByText("梦想院校地图");
+      await screen.findByText("梦校");
 
       await waitFor(() => expect(screen.queryByText("专注投入")).toBeNull());
       expect(screen.getByRole("button", { name: "生成" })).toBeTruthy();
@@ -243,7 +243,7 @@ describe("/explore 的版面顺序与口径", () => {
   it("地图数量对不上时，图下写出人话版的「另有 N 人次…暂未收录」（评审 M4 / S4）", async () => {
     mockFetch();
     render(<Explore />);
-    await screen.findByText("梦想院校地图");
+    await screen.findByText("梦校");
     expect(screen.getByText(/另有 1 人次填了暂未收录的院校（1 所）/)).toBeTruthy();
     // 量词口径：跨校合计才用人次，并补半句说明
     expect(screen.getByText(/同一孩子的多所院校各计一次/)).toBeTruthy();
@@ -262,7 +262,7 @@ describe("/explore 的版面顺序与口径", () => {
   it("地图只出现校名与人次，不出现姓名", async () => {
     mockFetch();
     const { container } = render(<Explore />);
-    await screen.findByText("梦想院校地图");
+    await screen.findByText("梦校");
     const map = container.querySelector("svg") as SVGElement;
     expect(map.textContent).not.toMatch(/英文名|姓名/);
     expect(map.querySelector("title")?.textContent).toBe("斯坦福大学 · 2 人");
@@ -271,7 +271,7 @@ describe("/explore 的版面顺序与口径", () => {
   it("保留指向选校地图的入口（带 from=explore）", async () => {
     mockFetch();
     const { container } = render(<Explore />);
-    await screen.findByText("梦想院校地图");
+    await screen.findByText("梦校");
     expect(container.querySelector('a[href="/colleges?from=explore"]')).not.toBeNull();
   });
 

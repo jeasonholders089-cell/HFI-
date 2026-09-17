@@ -1,27 +1,23 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
-import { useInferenceRun } from "@/lib/use-inference-run";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 
-const APP = "anthropic/claude-haiku-4-5";
-const SYSTEM_PROMPT = `你是HFI家长成长营的教育顾问。根据孩子的英文名、梦想学校和回答，输出 JSON：{"directions":[{"name":"方向","reason":"理由","path":"美国体系下的简短路径"}],"traits":["特质1","特质2"]}。只输出JSON。`;
 
 type Analysis = { directions?: {name:string;reason:string;path:string}[]; traits?: string[] };
 function parseJson(raw: string): Analysis | null { try { const s=raw.indexOf("{"); const e=raw.lastIndexOf("}"); return s>=0?JSON.parse(raw.slice(s,e+1)):null; } catch { return null; } }
 
-const schools = [{name:"Stanford University", city:"California", count:12, x:75,y:34}, {name:"RISD", city:"Rhode Island", count:8, x:86,y:26}, {name:"NYU", city:"New York", count:15, x:88,y:33}, {name:"Parsons", city:"New York", count:7, x:88,y:33}, {name:"UCLA", city:"California", count:10, x:73,y:43}];
 
 export default function Page() {
- const [text,setText]=useState(""); const [result,setResult]=useState<Analysis|null>(null); const [bulk,setBulk]=useState(""); const [file,setFile]=useState<File|null>(null); const [qr,setQr]=useState(""); const [message,setMessage]=useState(""); const {loading,error,run}=useInferenceRun();
+ const [text,setText]=useState(""); const [result,setResult]=useState<Analysis|null>(null); const [bulk,setBulk]=useState(""); const [file,setFile]=useState<File|null>(null); const [qr,setQr]=useState(""); const [message,setMessage]=useState(""); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
  async function importRows(rows:unknown[]){const r=await fetch('/api/children/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows)});const j=await r.json();setMessage(r.ok?`已导入 ${j.count} 条记录`:j.error)}
  async function importExcel(){if(!file)return;const book=XLSX.read(await file.arrayBuffer());const rows=XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]]);await importRows(rows)}
  async function importText(){const rows=bulk.trim().split(/\n\n+/).map(block=>{const v=block.split(/\n|\t/);return {englishName:v[0],age:v[1],dreamSchool:v[2],interests:v[3],activities:v[4],selfDescription:v[5],parentObservation:v[6],dreamCareer:v[7]}});await importRows(rows)}
  async function makeQR(){setQr(await QRCode.toDataURL(`${location.origin}/register`))}
- async function analyze(){ const task=await run(APP,{text,system_prompt:SYSTEM_PROMPT}); const out=task.output as {response?:string}|null; setResult(parseJson(out?.response||"")); }
+ async function analyze(){ setLoading(true); setError(""); try{ const r=await fetch("/api/ai-try",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})}); const j=await r.json(); if(!r.ok) throw Error(j.error||"试跑失败"); setResult(parseJson(j.response||"")); }catch(e){ setError(e instanceof Error?e.message:"试跑失败，请重试"); }finally{ setLoading(false); } }
  return <main className="min-h-screen bg-[#f4f0e6] text-[#17382f]">
   <header className="mx-auto flex max-w-7xl items-center justify-between px-8 py-7"><div className="text-xl font-semibold tracking-[.18em]">HFI <span className="font-normal tracking-[.08em]">家长成长营</span></div><SiteNav /><Link href="/register" className="border border-[#17382f] px-5 py-2 text-sm">开始录入 →</Link></header>
   <section id="about" className="mx-auto grid max-w-7xl gap-16 px-8 pb-24 pt-16 md:grid-cols-[1.05fr_.95fr] md:items-center"><div><p className="mb-6 text-xs uppercase tracking-[.35em] text-[#8b6f45]">HFI · 2026 FAMILY GROWTH CAMP</p><h1 className="max-w-2xl text-5xl font-light leading-[1.12] tracking-tight md:text-7xl">让每个孩子的<br/><i className="font-serif">可能性</i> 被看见。</h1><p className="mt-8 max-w-lg text-lg leading-8 text-[#50645b]">一场关于兴趣、潜能与未来方向的共同探索。我们从真实的回答出发，勾勒孩子独一无二的成长画像。</p><div className="mt-10 flex gap-4"><Link href="/register" className="bg-[#1e4b3b] px-7 py-4 text-sm text-white" style={{ color: "#ffffff" }}>为孩子建立成长档案　→</Link><a href="/explore" className="border border-[#aeb7ad] px-7 py-4 text-sm">查看活动全景</a></div></div><div className="relative min-h-[390px] overflow-hidden bg-[#dce4d9]"><div className="absolute inset-0 opacity-70" style={{backgroundImage:'radial-gradient(#829b8a 1px,transparent 1px)',backgroundSize:'24px 24px'}}/><div className="absolute left-[18%] top-[22%] h-64 w-64 rounded-full border border-[#829b8a]"/><div className="absolute right-[10%] top-[14%] h-44 w-44 rounded-full border border-[#829b8a]"/><div className="absolute bottom-10 left-10 text-8xl font-serif text-[#315d49]/20">∞</div><div className="absolute bottom-10 right-10 text-right"><div className="text-xs tracking-[.25em] text-[#667d70]">GROWTH IS A JOURNEY</div><div className="mt-2 text-3xl font-serif">成长，是一条路。</div></div></div></section>

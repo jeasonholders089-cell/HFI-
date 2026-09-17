@@ -66,7 +66,8 @@ Scorecard 的 4 年制主校区，2468 所）→ `src/lib/university-coords.ts`�
 ```
 AGENTS.md                # 本文件：项目规范
 README.md                # 给接手的人看：定位、技术栈、本地起服务、部署
-docs/                    # 需求、规格、界面草图、技术方案、评审记录
+docs/                    # 需求、规格、界面草图、技术方案、评审记录、面向现场的
+                         # 操作手册（13，以代码为准，界面改动后必须同步）
 output/pdf/              # 面向外部的交付物成品（当前为空）
 data/                    # 种子数据与构建产物输入（选校地图 CSV、州界 TopoJSON、
                          # 院校坐标表 university-coords.csv + 人工覆盖表）
