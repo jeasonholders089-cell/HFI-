@@ -24,7 +24,8 @@ export async function POST(req:Request){
  return NextResponse.json({ok:true});
  }
  const {age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}=child;
- const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({age,dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据问卷信息输出严格JSON，不要代码围栏，只包含三个学术方向及其依据：{"directions":[{"category":"${CATEGORIES.join('|')}中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据"}]}。每个方向category必须从${CATEGORY_ENUM}中选一个最适合的类别。判定规则：${CATEGORY_RULES}directions必须恰好3项，所有字段必须是非空字符串。只输出这三个方向与依据，不要输出画像总结、特质或其他字段。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。**reason 里如需引用孩子的原话，一律用中文引号「」包起来，禁止在 JSON 字符串里出现英文双引号。**`});
+ // 空字段统一送空串（不是 null）：问卷里没填的项就是"没提供"，别让模型去猜
+ const task=await runInference('anthropic/claude-haiku-4-5',{text:JSON.stringify({age:age??"",dreamSchool,interests,activities,selfDescription,parentObservation,dreamCareer}),system_prompt:`你是HFI家长成长营的美国教育探索顾问。根据问卷信息输出严格JSON，不要代码围栏，只包含三个学术方向及其依据：{"directions":[{"category":"${CATEGORIES.join('|')}中的一个","name":"方向中文名","nameEn":"英文领域名","reason":"引用问卷信息说明依据"}]}。每个方向category必须从${CATEGORY_ENUM}中选一个最适合的类别。判定规则：${CATEGORY_RULES}directions必须恰好3项，所有字段必须是非空字符串。只输出这三个方向与依据，不要输出画像总结、特质或其他字段。建议仅用于探索，不是能力定论或录取预测；不得编造孩子经历。**reason 里如需引用孩子的原话，一律用中文引号「」包起来，禁止在 JSON 字符串里出现英文双引号。**`});
  const raw=(task.output as {response?:string}|null)?.response||'';
  let a;try{a=parseModelJson<{directions?:Record<string,unknown>[]}>(raw)}catch{throw Error('模型返回格式异常，请重试')}
  const fields=['category','name','nameEn','reason'];

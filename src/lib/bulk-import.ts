@@ -35,8 +35,17 @@ const ALIASES: Record<BulkField, readonly string[]> = {
   dreamCareer: ["dreamcareer", "梦想职业", "职业"],
 };
 
-/** 必填的 7 项（梦想职业选填）——与 UI 文案、接口报错共用一份定义。 */
-export const REQUIRED_FIELDS = BULK_FIELDS.filter((f) => f !== "dreamCareer");
+/**
+ * 必填只有 3 项。
+ *
+ * **2026-09-18 改**：原先是"除梦想职业外 7 项必填"。现场反馈是家长常常只想填英文名、
+ * 梦校和喜欢的活动，卡在"年龄 / 自述 / 家长观察"上反而录不进来——而那些字段空着
+ * 完全不影响画像（AI 只根据写了的内容给方向，不会编造经历）。
+ *
+ * 这份定义是**唯一来源**：`/api/children` 的报错、批量导入的校验、页面文案都从这里派生，
+ * 不许各写一份——本期已经吃过"两处定义漂移"的亏。
+ */
+export const REQUIRED_FIELDS = ["englishName", "dreamSchool", "activities"] as const;
 
 /** 字段 → 用户看得懂的中文（报错与表头提示里用）。 */
 export const FIELD_LABEL: Record<BulkField, string> = {
@@ -47,7 +56,7 @@ export const FIELD_LABEL: Record<BulkField, string> = {
   activities: "喜欢的活动",
   selfDescription: "孩子自我描述",
   parentObservation: "家长观察",
-  dreamCareer: "梦想职业（选填）",
+  dreamCareer: "梦想职业",
 };
 
 /**
@@ -99,6 +108,41 @@ export function fieldList(fields: readonly BulkField[]): string {
   return fields.map((f) => FIELD_LABEL[f]).join("、");
 }
 
+/** 形如 `孩子的英文名: Emma` / `年龄：12` 的一行。左边限长，免得把整句话当字段名。 */
+const LABEL_LINE = /^\s*([^:：]{1,16})\s*[:：]\s*(.*)$/;
+
+/**
+ * 把「批量文本录入」里**一个孩子的那一段**解析成一行数据。两种写法都认：
+ *
+ * 1. **带字段名**（推荐）：一行一个「字段名: 内容」，顺序随便，没写的字段整行不写。
+ *    2026-09-18 加：必填从 7 项收到 3 项后，按顺序那种写法要求"空字段也得占一行"，
+ *    对着一堆空行数位置太容易错——而字段名写法对空缺天然免疫。
+ * 2. **按顺序**（老写法）：一行一个字段，固定八项的顺序。块里一行字段名都没认出来时走这条。
+ *
+ * 两种写法复用同一张列名别名表（`HEADER_MAP`），所以中文名、英文键名都认。
+ */
+export function parseTextBlock(block: string): Record<string, unknown> {
+  const labeled: Record<string, unknown> = {};
+  let matched = 0;
+  for (const line of block.split(/\r?\n/)) {
+    const m = LABEL_LINE.exec(line);
+    if (!m) continue;
+    const field = HEADER_MAP.get(normalizeHeader(m[1]));
+    if (!field) continue;
+    matched++;
+    // 同一个字段写了两行时以第一行为准，和 normalizeRow 的规矩保持一致
+    if (labeled[field] === undefined) labeled[field] = m[2].trim();
+  }
+  if (matched) return labeled;
+
+  const values = block.split(/\r?\n|\t/);
+  const positioned: Record<string, unknown> = {};
+  BULK_FIELDS.forEach((f, i) => {
+    positioned[f] = (values[i] ?? "").trim();
+  });
+  return positioned;
+}
+
 /**
  * 导入模板的行（第一行表头 + 两行示例）。
  *
@@ -137,11 +181,18 @@ export type BulkCheck =
   | { ok: true; rows: BulkRow[] }
   | { ok: false; error: string };
 
+/** 年龄是可选项：给了就必须是 1–100 的整数，没给不算错。 */
+function ageError(age: string): string | null {
+  if (!age) return null;
+  const n = Number(age);
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? null : "年龄应为 1 至 100 的整数（不填就留空）";
+}
+
 /**
  * 校验并整理成入库形状。
  *
- * 关键的一条**报错设计**：如果每一行都缺同样的必填项，那问题在**表头**不在数据——
- * 这时给一句"这些列没对上，第一行应该这样写"，而不是把每行都列一遍。
+ * 关键的一条**报错设计**：如果每一行都缺同样的必填项，那问题在**表头/字段名**不在数据——
+ * 这时给一句"这些名字没对上，应该这样写"，而不是把每行都列一遍。
  * 原来那种报错（截图里刷了一屏"第 N 条数据缺少…"）反而看不出真正的原因。
  */
 export function checkBulkRows(rawRows: readonly Record<string, unknown>[]): BulkCheck {
@@ -149,7 +200,7 @@ export function checkBulkRows(rawRows: readonly Record<string, unknown>[]): Bulk
 
   const rows = rawRows.map(normalizeRow);
 
-  // 每行缺的必填项**完全一样**且都不为空缺 → 判定为表头问题
+  // 每行缺的必填项**完全一样**且都不为空缺 → 判定为列名/字段名问题
   const missingOf = (r: Partial<BulkRow>) => REQUIRED_FIELDS.filter((f) => !r[f]).join(",");
   const firstMissing = missingOf(rows[0]);
   if (firstMissing && rows.every((r) => missingOf(r) === firstMissing)) {
@@ -157,9 +208,10 @@ export function checkBulkRows(rawRows: readonly Record<string, unknown>[]): Bulk
     return {
       ok: false,
       error:
-        `这些列没读到：${fieldList(missing)}。多半是表头没对上——` +
-        `第一行请按这个顺序写：${fieldList(REQUIRED_FIELDS)}、${FIELD_LABEL.dreamCareer}` +
-        `（列名里带括号或空格不影响识别）。`,
+        `这些没读到：${fieldList(missing)}。多半是名字没对上——` +
+        `Excel 第一行请用这几个列名：${fieldList([...BULK_FIELDS])}；` +
+        `文本录入请写成「${FIELD_LABEL.englishName}: 内容」这样的一行一个字段` +
+        `（带括号或空格不影响识别）。`,
     };
   }
 
@@ -167,11 +219,16 @@ export function checkBulkRows(rawRows: readonly Record<string, unknown>[]): Bulk
   rows.forEach((r, i) => {
     const missing = REQUIRED_FIELDS.filter((f) => !r[f]);
     if (missing.length) errors.push(`第 ${i + 1} 条数据缺少：${fieldList(missing)}`);
-    else if (!Number.isInteger(Number(r.age)) || Number(r.age) < 1 || Number(r.age) > 100)
-      errors.push(`第 ${i + 1} 条数据的年龄应为 1 至 100 的整数`);
+    else {
+      const bad = ageError(r.age ?? "");
+      if (bad) errors.push(`第 ${i + 1} 条数据的${bad}`);
+    }
   });
   if (errors.length) {
-    return { ok: false, error: `${errors.join("；")}。本次尚未导入，请修正后重试（梦想职业为选填）。` };
+    return {
+      ok: false,
+      error: `${errors.join("；")}。本次尚未导入，请修正后重试（必填的只有${fieldList([...REQUIRED_FIELDS])}）。`,
+    };
   }
 
   return {

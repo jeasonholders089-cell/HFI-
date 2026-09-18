@@ -2,6 +2,7 @@
 
 import {
   CHAT_MAX_TOKENS,
+  ai98Config,
   buildChatBody,
   detectTruncation,
   parseChatResponse,
@@ -133,5 +134,8 @@ describe("通道选择（pickChannel）", () => {
   it("默认模型是 Claude 系列（要换只改环境变量）", () => {
     const body = buildChatBody("claude-sonnet-4-5", { text: "x" });
     expect(String(body.model)).toContain("claude");
+    // 不配 AI98_MODEL 时的兜底默认值也得是 Claude；中转站换清单时改这一处 + .env
+    const cfg = ai98Config({ AI98_BASE_URL: "https://x/v1", AI98_KEY: "sk-test" });
+    expect(cfg?.model).toContain("claude");
   });
 });

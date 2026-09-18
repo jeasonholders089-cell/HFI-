@@ -41,7 +41,7 @@ Scorecard 的 4 年制主校区，2468 所）→ `src/lib/university-coords.ts`�
 | 路由 | 说明 | 状态 |
 | --- | --- | --- |
 | `/` | 首页：两条路径入口 + 实时摘要 + 批量录入 + AI 试用框 | 已建 |
-| `/register` | 家长自助填写，单页八字段（英文名 / 年龄 / 梦想学校 / 兴趣 / 喜欢的活动 / 孩子自述 / 家长观察 / 梦想职业选填） | 已建 |
+| `/register` | 家长自助填写，单页八字段（英文名 / 年龄 / 梦想学校 / 兴趣 / 喜欢的活动 / 孩子自述 / 家长观察 / 梦想职业）。**必填只有三项：孩子的英文名、梦想学校、喜欢的活动**（2026-09-18 起；表单上不打星号，其余留空即可） | 已建 |
 | `/explore` | 现场全景：梦想院校地图 → 八类方向统计 → 梦想院校名单 → 特质词云 → 孩子表；工作人员按钮收进标题行 | 已建 |
 | `/entry` | 工作人员单条访谈录入（需访问口令） | 未建 |
 | `/child/[token]` | 孩子成长画像，凭短码回看 | 未建 |
@@ -144,7 +144,7 @@ compose.yaml Dockerfile  # 平台部署配置
 | 样式 | Tailwind CSS 4；主题色定义在 `app/globals.css`（底色 `#f4f0e6`，主色 `#17382f`） |
 | 包管理 | pnpm（Dockerfile 里 pin pnpm@10，配淘宝 registry 加速） |
 | 数据库 | Postgres，经 Drizzle ORM（`drizzle-orm` 0.44.2 + `drizzle-kit` 0.31.4 + `pg`） |
-| AI | **两条通道，按环境变量自动选**（`lib/ai98.ts` 的 `pickChannel`）：① **AI98**（OpenAI 兼容 `/chat/completions`，模型由 `AI98_MODEL` 定，默认 `claude-sonnet-4-5`）；② 平台代理（`@inferencesh/sdk`，兜底）。**配了 AI98 就只用 AI98**，不会一半请求走 A 一半走 B |
+| AI | **两条通道，按环境变量自动选**（`lib/ai98.ts` 的 `pickChannel`）：① **AI98**（OpenAI 兼容 `/chat/completions`，模型由 `AI98_MODEL` 定，默认 `claude-sonnet-4-6`）；② 平台代理（`@inferencesh/sdk`，兜底）。**配了 AI98 就只用 AI98**，不会一半请求走 A 一半走 B。**中转站的模型清单会变**（`claude-sonnet-4-5` 已于 2026-09-18 下架），AI 全部报错时先 `GET /v1/models` 看清单 |
 | 表格导入 | `xlsx`（首页的 Excel 批量录入） |
 | 二维码 | `qrcode`（首页生成手机问卷二维码） |
 
@@ -213,14 +213,16 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 8 �
 | `DATABASE_URL` | 平台注入的 Postgres 连接串（托管库带 `sslmode=require`，见 `lib/pg-dsn.ts`） |
 | `AI98_KEY` | **AI98 模型通道的密钥**（服务端密钥，绝不进客户端）。配了它 + `AI98_BASE_URL` 就走 AI98 |
 | `AI98_BASE_URL` | AI98 的 OpenAI 兼容端点，填到 `/v1` 为止（例：`https://<域名>/v1`） |
-| `AI98_MODEL` | 走 AI98 时用的模型，默认 `claude-sonnet-4-5` |
+| `AI98_MODEL` | 走 AI98 时用的模型，默认 `claude-sonnet-4-6`。**这是唯一真正生效的模型名**——业务代码里那些 `anthropic/claude-haiku-4-5` 只是平台代理兜底通道的参数，走 AI98 时被忽略 |
 | `NEXT_PUBLIC_INFERENCE_PROXY_URL` | 推理代理地址；build 期会被嵌进客户端 bundle |
 | `LUFFY_PREVIEW_ORIGINS` | 沙箱预览反代域名，供 Next dev 放行跨源（见 `next.config.ts`） |
 
 > **根目录已无 `.env`。** 之前那份 161 行的配置属于另一个项目（MySQL、云服务器 IP 明文、
 > `PORT` / `FRONTEND_URL`），已于 2026-09-17 移到仓库外：
 > `F:\AI_Agent\HFI家长成长营-根目录遗留.env`。本项目应用读的是 `src/.env`，
-> 目前只有一行 `DATABASE_URL`，指向本地 Postgres（**注意端口是 5434 不是 5432**）。
+> 其中 `DATABASE_URL` 指向本地 Postgres 容器 `hfi-growth-pg`
+> （**注意端口是 15434 不是 5432**；2026-09-18 从 5434 改过来——Windows 把 5358–5457
+> 划进了 Hyper-V 保留端口段，Docker 绑不上 5434，容器是换端口重建的，数据在命名卷里没动）。
 
 ---
 
@@ -243,7 +245,8 @@ AI 必须恰好输出 3 个方向，每个方向的 `category` 必须是这 8 �
 **已完成**
 
 - 应用骨架跑通：Next.js App Router + Postgres + Drizzle 版本化迁移（4 个迁移）
-- 家长自助填写 `/register`（单页八字段，含幂等提交与字段校验）
+- 家长自助填写 `/register`（单页八字段，含幂等提交与字段校验；**必填只有英文名 / 梦想学校 /
+  喜欢的活动**，其余留空即可，2026-09-18 起）
 - 首页 `/`：两条路径入口 + 实时摘要 + 批量录入（Excel / 文本）+ 问卷二维码 + AI 试用框
 - 现场全景 `/explore`：梦想院校地图（第一屏）、八类方向统计、梦想院校名单、特质词云、
   逐条 AI 分析（带进度与失败记录）、数据清空；**按场次看（一天一场，北京时间日界）**，

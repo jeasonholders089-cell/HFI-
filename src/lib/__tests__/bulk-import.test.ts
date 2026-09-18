@@ -2,11 +2,13 @@
 
 import {
   BULK_FIELDS,
+  FIELD_LABEL,
+  REQUIRED_FIELDS,
   buildHeaderMap,
   checkBulkRows,
   normalizeHeader,
   normalizeRow,
-  FIELD_LABEL,
+  parseTextBlock,
   templateRows,
 } from "../bulk-import";
 
@@ -91,7 +93,7 @@ describe("校验与报错", () => {
     const r = checkBulkRows(bad);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.error).toContain("表头没对上");
+      expect(r.error).toContain("名字没对上");
       expect(r.error).toContain("孩子的英文名");
       // 不能把每行都列一遍（那正是原来刷一屏的原因）
       expect(r.error).not.toContain("第 1 条");
@@ -100,12 +102,42 @@ describe("校验与报错", () => {
   });
 
   it("只有个别行缺字段 → 逐条点名（这时逐条报才是有用的）", () => {
-    const r = checkBulkRows([okRow, { ...okRow, "兴趣": "" }]);
+    const r = checkBulkRows([okRow, { ...okRow, "喜欢的活动": "" }]);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.error).toContain("第 2 条数据缺少：兴趣");
-      expect(r.error).not.toContain("表头没对上");
+      expect(r.error).toContain("第 2 条数据缺少：喜欢的活动");
+      expect(r.error).not.toContain("名字没对上");
     }
+  });
+
+  /**
+   * 2026-09-18：必填从 7 项收到 3 项（英文名 / 梦想学校 / 喜欢的活动）。
+   * 现场家长常常只想填这两三样，卡在"年龄 / 自述 / 家长观察"上反而录不进来。
+   */
+  it("必填就是那三项，多一个少一个都算改契约", () => {
+    expect([...REQUIRED_FIELDS]).toEqual(["englishName", "dreamSchool", "activities"]);
+  });
+
+  it("只填必填的三项 → 通过（其余留空）", () => {
+    const r = checkBulkRows([
+      { "孩子的英文名": "Emma", "梦想学校": "RISD", "喜欢的活动": "绘画、做手账" },
+    ]);
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    if (r.ok) {
+      expect(r.rows[0].age).toBe("");
+      expect(r.rows[0].interests).toBe("");
+      expect(r.rows[0].selfDescription).toBe("");
+      expect(r.rows[0].parentObservation).toBe("");
+      expect(r.rows[0].dreamCareer).toBe("");
+    }
+  });
+
+  it("年龄留空不算错 —— 但填了就必须合法", () => {
+    const withAge = checkBulkRows([{ ...okRow, "年龄": "" }]);
+    expect(withAge.ok, withAge.ok ? "" : withAge.error).toBe(true);
+
+    const badAge = checkBulkRows([{ ...okRow, "年龄": "0" }]);
+    expect(badAge.ok).toBe(false);
   });
 
   it("年龄不是 1–100 的整数 → 报出来", () => {
@@ -147,5 +179,56 @@ describe("导入模板", () => {
     const rows = templateRows().slice(1);
     expect(rows.some((r) => r[BULK_FIELDS.indexOf("dreamCareer")])).toBe(true);
     expect(rows.some((r) => !r[BULK_FIELDS.indexOf("dreamCareer")])).toBe(true);
+  });
+
+  it("两行示例的必填三项都填了（否则示例自己就导不进去）", () => {
+    for (const row of templateRows().slice(1)) {
+      for (const f of REQUIRED_FIELDS) expect(row[BULK_FIELDS.indexOf(f)]).toBeTruthy();
+    }
+  });
+});
+
+/**
+ * 批量文本录入的解析（2026-09-18 加）。
+ *
+ * 由来：必填收到 3 项后，按顺序那种写法要求"空字段也占一行"，
+ * 对着一堆空行数位置太容易错——所以加了"字段名: 内容"的写法，两种都认。
+ */
+describe("parseTextBlock", () => {
+  it("带字段名：一行一个，顺序随便，没写的字段不出现", () => {
+    const row = parseTextBlock("梦想学校: RISD\n孩子的英文名: Emma\n喜欢的活动: 绘画、做手账");
+    expect(row).toEqual({
+      dreamSchool: "RISD",
+      englishName: "Emma",
+      activities: "绘画、做手账",
+    });
+  });
+
+  it("字段名支持中英文键名与全角冒号", () => {
+    const row = parseTextBlock("englishName：Leo\nDream School: Stanford");
+    expect(row.englishName).toBe("Leo");
+    expect(row.dreamSchool).toBe("Stanford");
+  });
+
+  it("老写法（一行一个字段、按固定顺序）继续能用", () => {
+    const row = parseTextBlock("Emma\n12\nRISD\n绘画\n绘画社团\n我喜欢画画\n对细节在意\n插画师");
+    expect(row.englishName).toBe("Emma");
+    expect(row.age).toBe("12");
+    expect(row.dreamSchool).toBe("RISD");
+    expect(row.activities).toBe("绘画社团");
+    expect(row.dreamCareer).toBe("插画师");
+  });
+
+  it("认不出字段名时按顺序读，不会把内容当字段名丢掉", () => {
+    const row = parseTextBlock("Emma\n12\nRISD");
+    expect(row.englishName).toBe("Emma");
+    expect(row.dreamSchool).toBe("RISD");
+  });
+
+  it("带字段名的写法能直接过校验（只写必填三项）", () => {
+    const checked = checkBulkRows([
+      parseTextBlock("孩子的英文名: Emma\n梦想学校: RISD\n喜欢的活动: 绘画"),
+    ]);
+    expect(checked.ok, checked.ok ? "" : checked.error).toBe(true);
   });
 });

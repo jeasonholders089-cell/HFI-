@@ -13,7 +13,8 @@ export const children = pgTable("children", {
   id: serial("id").primaryKey(),
   submissionKey: text("submission_key").unique(),
   englishName: text("english_name").notNull(),
-  age: integer("age").notNull(),
+  // 年龄是选填的（2026-09-18 起），留空存 NULL —— 不存 0，0 会被下游当成"0 岁"读出去
+  age: integer("age"),
   dreamSchool: text("dream_school").notNull(),
   interests: text("interests").notNull(),
   activities: text("activities").notNull(),

@@ -20,7 +20,11 @@ export function ai98Config(env: EnvLike = process.env): Ai98Config | null {
   const baseUrl = (env.AI98_BASE_URL ?? "").trim().replace(/\/+$/, "");
   const key = (env.AI98_KEY ?? "").trim();
   if (!baseUrl || !key) return null;
-  return { baseUrl, key, model: (env.AI98_MODEL ?? "claude-sonnet-4-5").trim() };
+  // 默认值只是兜底：真正生效的是 .env 里的 AI98_MODEL。
+  // 2026-09-18 从 claude-sonnet-4-5 换成 -4-6 —— 中转站的模型清单会变，
+  // 下架后的表现是对**所有**请求回 404「not supported by any configured account in this group」，
+  // 排查时先 `GET /v1/models` 看当前可用清单（见 AGENTS.md 的环境变量一节）。
+  return { baseUrl, key, model: (env.AI98_MODEL ?? "claude-sonnet-4-6").trim() };
 }
 
 export type Channel = "ai98" | "proxy" | "none";

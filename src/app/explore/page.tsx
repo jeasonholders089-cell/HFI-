@@ -24,7 +24,8 @@ import { hasProfile } from "@/lib/child-profile";
 type Child = {
   id: number;
   englishName: string;
-  age: number;
+  /** 年龄选填（2026-09-18 起），没填就是 null */
+  age: number | null;
   dreamSchool: string;
   interests: string;
   aiDirections: string | null;
